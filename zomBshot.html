@@ -1,0 +1,2113 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Zombie Shooter — 무한 좀비 슈터</title>
+  <style>
+    :root{font-family:Inter,system-ui,Segoe UI,Roboto,'Noto Sans KR',sans-serif}
+    html,body{height:100%;margin:0;background:#0f1724;color:#e6eef8}
+    #ui{position:fixed;left:12px;top:12px;z-index:10;background:rgba(0,0,0,0.8);padding:12px;border-radius:10px;border:2px solid rgba(255,255,255,0.1);min-width:200px;transform-origin:top left;transform:scale(0.92)}
+    #ui .big{font-size:18px;font-weight:700;margin-bottom:6px;color:#4ade80;text-shadow:0 0 10px rgba(74,222,128,0.5)}
+    #ui .small{font-size:13px;opacity:.9;margin-bottom:8px}
+    .health-bar{width:100%;height:16px;background:rgba(0,0,0,0.5);border-radius:10px;overflow:hidden;border:2px solid rgba(255,255,255,0.2);margin-bottom:6px}
+    .health-fill{height:100%;background:linear-gradient(90deg,#ef4444,#f97316);transition:width 0.3s ease;border-radius:8px}
+    .health-text{font-size:12px;text-align:center;margin-top:4px;color:#fff;font-weight:600}
+    canvas{display:block;margin:0 auto;background:linear-gradient(#111827,#071029);box-shadow:0 6px 30px rgba(2,6,23,.7);border-radius:8px}
+    #controls{position:fixed;right:12px;top:12px;text-align:right}
+    button{background:#111827;color:#e6eef8;border:1px solid rgba(255,255,255,.06);padding:8px 12px;border-radius:6px;cursor:pointer}
+    button:hover{transform:translateY(-1px)}
+    .center-msg{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center}
+    .center-msg h1{margin:0 0 8px 0;font-size:28px}
+    .center-msg p{margin:0 0 12px 0;color:#cbd5e1}
+    #weapon-name{font-weight:700;margin-left:10px}
+    #grenade-status{font-size:13px;margin-top:6px;opacity:.9}
+    #buffs{position:fixed;left:12px;bottom:12px;z-index:10;max-width:300px;max-height:40vh;overflow:auto}
+    .buff-item{background:rgba(0,0,0,0.7);padding:3px 6px;margin:2px 0;border-radius:4px;font-size:11px;border-left:3px solid #4ade80;line-height:1.25}
+    .card-overlay{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);padding:20px;border-radius:12px;z-index:100;display:none;text-align:center;min-width:540px;border:2px solid rgba(74,222,128,0.3)}
+    .card{background:linear-gradient(135deg,#1e293b,#334155);padding:15px;margin:10px;border-radius:8px;cursor:pointer;border:2px solid transparent;transition:all 0.2s;display:inline-block;width:170px;vertical-align:top}
+    .card:hover{border-color:#4ade80;transform:scale(1.05);box-shadow:0 0 20px rgba(74,222,128,0.3)}
+    .card-title{font-weight:700;color:#4ade80;margin-bottom:8px;font-size:14px}
+    .card-desc{font-size:11px;color:#cbd5e1;line-height:1.3}
+    
+    /* 모바일 터치 컨트롤 */
+    .mobile-controls{position:fixed;bottom:20px;left:20px;display:none;z-index:20}
+    .joystick{width:80px;height:80px;border:3px solid rgba(255,255,255,0.3);border-radius:50%;background:rgba(0,0,0,0.5);position:relative}
+    .joystick-knob{width:30px;height:30px;background:#4ade80;border-radius:50%;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);transition:all 0.1s}
+    .shoot-button{position:fixed;bottom:20px;right:20px;width:80px;height:80px;border:3px solid rgba(255,255,255,0.3);border-radius:50%;background:rgba(239,68,68,0.8);display:none;z-index:20;cursor:pointer}
+    .shoot-button:active{background:rgba(239,68,68,1);transform:scale(0.95)}
+    
+    @media (max-width: 768px) {
+      .mobile-controls{display:block}
+      .shoot-button{display:block}
+      #controls-left{display:none}
+      #ui{transform:scale(0.8)}
+      canvas{max-width:100vw;max-height:100vh;width:auto;height:auto}
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div class="big">Score: <span id="score">0</span></div>
+    <div class="health-bar">
+      <div class="health-fill" id="healthFill"></div>
+    </div>
+    <div class="health-text" id="healthText">100 / 100</div>
+    <div class="small">Zombies: <span id="zcount">0</span></div>
+  </div>
+  <div id="controls-left" style="position:fixed;left:12px;top:200px;z-index:10;background:rgba(0,0,0,0.8);padding:12px;border-radius:10px;border:2px solid rgba(255,255,255,0.1);min-width:200px;transform-origin:top left;transform:scale(0.85);font-size:12px;color:#e6eef8;line-height:1.4;">
+    <div style="font-weight:700;margin-bottom:8px;color:#4ade80;">조작법</div>
+    <div>WASD / 방향키 : 이동</div>
+    <div>마우스 : 조준</div>
+    <div>클릭/Space : 발사</div>
+    <div>Q/E/X : 무기전환</div>
+    <div>R : 수류탄(궁극기)</div>
+    <div>P : 일시정지</div>
+    <div style="color:#cbd5e1;font-size:10px;margin-top:8px;">모바일: 터치로 조작</div>
+    
+    <div style="font-weight:700;margin-top:16px;margin-bottom:8px;color:#fbbf24;">최고 점수</div>
+    <div id="high-scores" style="font-size:11px;line-height:1.2;"></div>
+  </div>
+  <div id="controls">
+    <div style="margin-bottom:8px">무기: <span id="weapon-name">기본 총</span></div>
+    <div id="grenade-status">수류탄: 준비 중...</div>
+    <div style="margin-top:8px"><button id="pauseBtn">일시정지</button>
+    <button id="restartBtn">재시작</button></div>
+  </div>
+
+  <canvas id="game" width="960" height="640"></canvas>
+  
+  <!-- 모바일 터치 컨트롤 -->
+  <div class="mobile-controls">
+    <div class="joystick" id="joystick">
+      <div class="joystick-knob" id="joystickKnob"></div>
+    </div>
+  </div>
+  <div class="shoot-button" id="shootButton">🔥</div>
+
+  <div class="center-msg" id="overlay" style="display:none">
+    <h1 id="overlay-title">Game Over</h1>
+    <p id="overlay-sub">클릭하거나 재시작 버튼으로 재시작</p>
+    <div style="margin-top:12px"><button id="overlayBtn">계속</button></div>
+  </div>
+
+  <div class="center-msg" id="startOverlay" style="display:block;background:rgba(0,0,0,0.95);padding:30px;border-radius:15px;border:2px solid #4ade80;">
+    <h1 style="color:#4ade80;margin-bottom:16px;">🧟‍♂️ Zombie Shooter</h1>
+    <div style="text-align:left;max-width:400px;margin:0 auto;line-height:1.6;">
+      <div style="margin-bottom:12px;"><strong>🎮 조작법:</strong></div>
+      <div>• WASD / 방향키: 이동</div>
+      <div>• 마우스: 조준</div>
+      <div>• 클릭/Space: 발사</div>
+      <div>• Q/E/X: 무기 전환</div>
+      <div>• R: 수류탄</div>
+      <div>• P: 일시정지</div>
+      <div style="margin-top:12px;color:#cbd5e1;">📱 모바일: 터치로 조작</div>
+    </div>
+    <div style="margin-top:20px;color:#cbd5e1;font-size:14px;">
+      좀비를 처치하고 카드를 수집하여 강해지세요!
+    </div>
+    <div style="margin-top:16px"><button id="startBtn" style="background:#4ade80;color:#000;border:none;padding:12px 24px;border-radius:8px;font-weight:700;cursor:pointer;">게임 시작</button></div>
+  </div>
+
+  <div id="buffs">
+    <div style="font-weight:700;margin-bottom:8px;color:#4ade80">활성 버프:</div>
+    <div id="buff-list"></div>
+  </div>
+
+  <div class="card-overlay" id="cardOverlay">
+    <h2 style="color:#4ade80;margin-bottom:8px" id="cardTitle">카드를 선택하세요!</h2>
+    <div id="cardContainer"></div>
+    <div id="pickHint" style="color:#cbd5e1;font-size:12px;margin-top:6px"></div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const healthEl = document.getElementById('healthText');
+  const healthFill = document.getElementById('healthFill');
+  const zcountEl = document.getElementById('zcount');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const overlay = document.getElementById('overlay');
+  const overlayBtn = document.getElementById('overlayBtn');
+  const startOverlay = document.getElementById('startOverlay');
+  const startBtn = document.getElementById('startBtn');
+  const joystick = document.getElementById('joystick');
+  const joystickKnob = document.getElementById('joystickKnob');
+  const shootButton = document.getElementById('shootButton');
+  const weaponNameEl = document.getElementById('weapon-name');
+  const grenadeStatusEl = document.getElementById('grenade-status');
+  const cardOverlay = document.getElementById('cardOverlay');
+  const cardContainer = document.getElementById('cardContainer');
+  const cardTitle = document.getElementById('cardTitle');
+  const pickHint = document.getElementById('pickHint');
+  const buffList = document.getElementById('buff-list');
+
+  const W = canvas.width, H = canvas.height;
+  let lastTime = 0, running = true, score = 0;
+  const keys = {};
+  const mouse = {x: W/2, y: H/2, down:false};
+  const rand = (min,max)=> Math.random()*(max-min)+min;
+  
+  // 모바일 컨트롤 변수
+  let joystickActive = false;
+  let joystickCenter = {x: 0, y: 0};
+  let joystickOffset = {x: 0, y: 0};
+
+  const BASE_WEAPONS = [
+    { id: 'basic', name: '기본 총', damage: 20, fireRate: 60, bulletSpeed: 560, bulletR:8, color:'#fff' },
+    { id: 'power', name: '강력 총', damage: 1000, fireRate: 900, bulletSpeed: 850, bulletR:14, color:'#ffde33' },
+    { id: 'pierce', name: '관통 대포', damage: 900, fireRate: 800, bulletSpeed: 400, bulletR:16, color:'#ff4444', pierce: true }
+  ];
+  const weapons = JSON.parse(JSON.stringify(BASE_WEAPONS));
+  let currentWeapon = 0;
+  const player = { x: W/2, y: H-80, r: 14, speed: 220, health: 100, lastShot: 0, maxHealth: 100 };
+
+  let bullets = [];
+  let zombies = [];
+  let bosses = [];
+  let cards = [];
+  let flameOrbs = [];
+  let poisonPools = [];
+  let healingOrbs = [];
+  let floatingTexts = [];
+  let bloodPools = [];
+
+  // Grenades handling (support queuing from buffs)
+  let grenades = [];
+  let grenadeCooldown = 5000;
+  let lastGrenade = -99999;
+  let queuedGrenades = [];
+
+  let spawnTimer = 0, spawnInterval = 1200, difficultyTimer = 0, bossTimer = 0, mutantTimer = 0;
+  let flashTime = 0, flashX = 0, flashY = 0, flashR = 0; let cameraShake = 0;
+  let autoShootTimer = 0, poisonTimer = 0, flameOrbAngle = 0;
+  let powerBurstTimer = 0; // 버프12
+  let swordTimer = 0; // 버프10
+  let safeguardWindow = []; // 버프9 피격 타임스탬프
+  let safeguardActive = false; let safeguardUntil = 0;
+
+  // 특별 버프 관련 변수
+  let catPetTimer = 0; // 고양이 펫 타이머
+  let basicShotCount = 0; // 기본총 발사 카운트
+  let chainExplosions = []; // 연쇄 폭발
+  let slowedEnemies = []; // 슬로우된 적들
+  let cursedEnemies = []; // 저주받은 적들
+  
+  // 게임 시간 관련 변수
+  let gameStartTime = 0;
+  let isLateGame = false; // 25분 후 체크
+
+  // 통계 시스템
+  let highScores = JSON.parse(localStorage.getItem('zombieShooter_highScores') || '[]');
+  let weaponDamage = { basic: 0, power: 0, pierce: 0 };
+  const highScoresEl = document.getElementById('high-scores');
+
+  // 카드 선택 남은 횟수 (돌연변이 보스 처치 시 2)
+  let cardPicksRemaining = 0;
+  let specialRewardMode = false; // 모든 버프 획득 시 스페셜 카드만 제공 모드
+
+  // 버프 시스템 (기존 13 + 신규 17 + 특별 10 + 프리즘 3 = 43개)
+  const buffs = {
+    grenadeCooldown: false,
+    pierceSize: false,
+    zombieExplode: false,
+    speedDodge: false,
+    doubleHealth: false,
+    autoPierce: false,
+    healingOrbs: false,
+    flameOrbs: false,
+    poisonPools: false,
+    pierceCount: false,
+    burnEffect: false,
+    bossDamage: false,
+    grenadeRange: false,
+
+    // 신규 1~17
+    g_doubleCast10: false,        // 1
+    pierceFaster200: false,       // 2
+    powerFaster150: false,        // 3
+    powerBurn80: false,           // 4
+    powerExtraBullet20: false,    // 5
+    basicMega005: false,          // 6 (극대 탄)
+    buffGrenadePlus100: false,    // 7
+    grenadePlus200And10pctHP: false, // 8
+    safeguard5s: false,           // 9
+    swordEvery10s: false,         // 10
+    score15On1pct: false,         // 11
+    powerRadial10s: false,        // 12
+    grenadePlus50OnDOT: false,    // 13
+    powerKnockback: false,        // 14
+    basicInstakillRare: false,    // 15 (신의 탄환)
+    basicPlus35: false,           // 16 (+320으로 상향)
+    pierceCrit20: false,          // 17
+
+    // 특별 노랑 버프 1~10
+    gravityField: false,          // 1: 중력장
+    scoreDamageBoost: false,      // 2: 스코어 데미지 부스트
+    lifeSteal: false,             // 3: 생명력 흡수
+    pierceSlow: false,            // 4: 관통 슬로우
+    powerGrenadeDrop: false,      // 5: 강력총 수류탄 드롭
+    catPet: false,                // 6: 고양이 펫
+    valkyrieCurse: false,         // 7: 발키리의 저주
+    basicBurst: false,            // 8: 기본총 버스트
+    powerSpeedCrit: false,        // 9: 강력총 속도+치명타
+    grenadeChain: false,          // 10: 수류탄 연쇄폭발
+
+    // 프리즘 버프 1~3
+    basicAwakening: false,        // 1: 기본총 각성
+    powerAwakening: false,        // 2: 강력총 각성
+    pierceAwakening: false        // 3: 관통대포 각성
+  };
+
+  const buffNames = {
+    grenadeCooldown: "수류탄 쿨타임 1초",
+    pierceSize: "관통대포 크기 증가",
+    zombieExplode: "좀비 폭발 효과",
+    speedDodge: "고속 회피 + 수류탄",
+    doubleHealth: "체력 2배",
+    autoPierce: "자동 관통 공격",
+    healingOrbs: "회복구슬 드롭",
+    flameOrbs: "화염구슬",
+    poisonPools: "독 웅덩이",
+    pierceCount: "관통 수 +5",
+    burnEffect: "수류탄 화상",
+    bossDamage: "보스 데미지 +40%",
+    grenadeRange: "수류탄 범위 +50%",
+
+    g_doubleCast10: "수류탄 10% 재발동",
+    pierceFaster200: "관통대포 발사간격 -200",
+    powerFaster150: "강력총 발사간격 -150",
+    powerBurn80: "강력총 10초간 초당 80 화상",
+    powerExtraBullet20: "강력총 20% 추가 탄환",
+    basicMega005: "극대 탄(초거대 관통탄)",
+    buffGrenadePlus100: "버프발동 수류탄 +100 피해",
+    grenadePlus200And10pctHP: "수류탄 +200, 비보스 10% 추가",
+    safeguard5s: "2초내 3피격 시 5초 무적/이속2배",
+    swordEvery10s: "혼의 검(가시성↑, 범위↑)",
+    score15On1pct: "처치 1% 확률 점수 1.5배",
+    powerRadial10s: "10초마다 8방향 강력총",
+    grenadePlus50OnDOT: "DOT 대상 수류탄 +50",
+    powerKnockback: "강력총 피격 밀쳐내기",
+    basicInstakillRare: "신의 탄환(극저확률 즉사)",
+    basicPlus35: "탄두 증량 +100",
+    pierceCrit20: "관통 치명 20%(x1.5, 표시)",
+
+    // 특별 노랑 버프
+    gravityField: "중력장 (적 속도 -25%, 초당 60 데미지)",
+    scoreDamageBoost: "스코어 데미지 부스트 (2000점당 0.5%)",
+    lifeSteal: "생명력 흡수 (1% 확률)",
+    pierceSlow: "관통 슬로우 (3초간 -10%)",
+    powerGrenadeDrop: "강력총 수류탄 드롭",
+    catPet: "고양이 펫 (4초마다 수류탄)",
+    valkyrieCurse: "발키리의 저주 (피해 +10%)",
+    basicBurst: "기본총 버스트 (30발마다 10발)",
+    powerSpeedCrit: "강력총 속도+치명타",
+    grenadeChain: "수류탄 연쇄폭발",
+
+    // 프리즘 버프
+    basicAwakening: "기본총 각성 (데미지+25, 속도+100, 발사간격-15, 35발마다 랜덤 탄환)",
+    powerAwakening: "강력총 각성 (데미지+200, 발사간격-150, 체력2% 추가피해)",
+    pierceAwakening: "관통대포 각성 (데미지+100, 속도+100, 관통완료시 수류탄)"
+  };
+
+  const cardData = [
+    { id: 'grenadeCooldown', title: '폭발 마스터', desc: '수류탄 쿨타임이 1초로 감소합니다.' },
+    { id: 'pierceSize', title: '거대 포탄', desc: '관통대포의 총알 크기가 커집니다.' },
+    { id: 'zombieExplode', title: '연쇄 폭발', desc: '좀비를 죽일 때 작은 범위로 수류탄이 터집니다.' },
+    { id: 'speedDodge', title: '신속 회피', desc: '이동속도 1.5배 + 15% 확률로 회피시 수류탄 3개 발사' },
+    { id: 'doubleHealth', title: '강화 체력', desc: '플레이어 체력이 2배가 됩니다.' },
+    { id: 'autoPierce', title: '자동 방어', desc: '10초마다 8방향으로 관통대포가 발사됩니다.' },
+    { id: 'healingOrbs', title: '생명의 구슬', desc: '좀비 처치 시 2.5% 확률로 회복구슬 드롭(50 회복).' },
+    { id: 'flameOrbs', title: '화염 방어', desc: '플레이어 주변에 화염구슬이 적을 공격.' },
+    { id: 'poisonPools', title: '독성 지대', desc: '15초마다 범위 3배의 독 웅덩이 생성.' },
+    { id: 'pierceCount', title: '관통 강화', desc: '관통대포의 관통 가능 수가 5 증가.' },
+    { id: 'burnEffect', title: '화상 효과', desc: '수류탄 DOT: 50+체력의 5%/s.' },
+    { id: 'bossDamage', title: '보스 킬러', desc: '보스 대상 피해 1.4배.' },
+    { id: 'grenadeRange', title: '광역 폭발', desc: '수류탄 폭발 범위 1.5배.' },
+
+    { id: 'g_doubleCast10', title: '이중 기폭', desc: '수류탄 사용 시 10% 확률로 한 번 더 사용.' },
+    { id: 'pierceFaster200', title: '경량 차지', desc: '관통대포 발사 간격 200 감소.' },
+    { id: 'powerFaster150', title: '개조 트리거', desc: '강력총 발사 간격 150 감소.' },
+    { id: 'powerBurn80', title: '소이 코어', desc: '강력총 피격 적 10초간 초당 80 피해.' },
+    { id: 'powerExtraBullet20', title: '더블 배럴', desc: '강력총 20% 확률로 추가 탄환.' },
+    { id: 'basicMega005', title: '극대 탄', desc: '기본총 0.5% 확률 초거대 40x 관통탄.' },
+    { id: 'buffGrenadePlus100', title: '충격 증폭', desc: '버프발동 수류탄 피해 +100.' },
+    { id: 'grenadePlus200And10pctHP', title: '과충전 폭탄', desc: '수류탄 +200, 비보스 적 체력 10% 추가 피해.' },
+    { id: 'safeguard5s', title: '무적 질주', desc: '2초내 3피격 시 5초 무적/이속2배(잔상).' },
+    { id: 'swordEvery10s', title: '혼의 검', desc: '10초마다 전방 검(가시성↑, 속도↓, 범위↑).' },
+    { id: 'score15On1pct', title: '행운의 코인', desc: '처치 1% 확률로 점수 1.5배.' },
+    { id: 'powerRadial10s', title: '초신성 폭격', desc: '10초마다 8방향 강력총 발사.' },
+    { id: 'grenadePlus50OnDOT', title: '상처 벌리기', desc: 'DOT 대상에게 수류탄 피해 +50.' },
+    { id: 'powerKnockback', title: '충격 완충', desc: '강력총 피격 시 적 약간 밀침.' },
+    { id: 'basicInstakillRare', title: '신의 탄환', desc: '기본총 0.06% 확률 즉사탄.' },
+    { id: 'basicPlus35', title: '탄두 증량', desc: '기본총 피해 +100.' },
+    { id: 'pierceCrit20', title: '관통 치명', desc: '관통대포 치명타 20%(x1.5, "크리티컬!" 표시).' },
+
+    // 특별 노랑 버프 카드
+    { id: 'gravityField', title: '중력장', desc: '플레이어 주변 중력장으로 적 속도 25% 감소, 초당 60 데미지.', color: '#fbbf24' },
+    { id: 'scoreDamageBoost', title: '스코어 파워', desc: '2000점당 모든 피해 0.5% 증가.', color: '#fbbf24' },
+    { id: 'lifeSteal', title: '생명력 흡수', desc: '좀비 피해 시 1% 확률로 체력 10 회복.', color: '#fbbf24' },
+    { id: 'pierceSlow', title: '관통 슬로우', desc: '관통대포 피격 시 3초간 속도 10% 감소.', color: '#fbbf24' },
+    { id: 'powerGrenadeDrop', title: '강력 폭발', desc: '강력총으로 적 처치 시 수류탄 2개 드롭.', color: '#fbbf24' },
+    { id: 'catPet', title: '고양이 펫', desc: '4초마다 좀비 밀집지역에 수류탄 투하.', color: '#fbbf24' },
+    { id: 'valkyrieCurse', title: '발키리의 저주', desc: '강력총 피격 시 무한 피해 10% 증가.', color: '#fbbf24' },
+    { id: 'basicBurst', title: '기본총 버스트', desc: '30발 발사마다 10발 추가 발사.', color: '#fbbf24' },
+    { id: 'powerSpeedCrit', title: '강력총 강화', desc: '속도 +100, 치명타 추가.', color: '#fbbf24' },
+    { id: 'grenadeChain', title: '연쇄 폭발', desc: '수류탄 폭발 1초 후 3번 연쇄폭발.', color: '#fbbf24' },
+
+    // 프리즘 버프 카드
+    { id: 'basicAwakening', title: '기본총 각성', desc: '데미지+25, 속도+100, 발사간격-15, 35발마다 랜덤 탄환.', color: '#8b5cf6' },
+    { id: 'powerAwakening', title: '강력총 각성', desc: '데미지+200, 발사간격-150, 체력2% 추가피해, 필수치명타.', color: '#8b5cf6' },
+    { id: 'pierceAwakening', title: '관통대포 각성', desc: '데미지+100, 속도+100, 관통완료시 수류탄 폭발.', color: '#8b5cf6' }
+  ];
+
+  // 스페셜 보상 카드 (모든 버프 획득 후에도 반복 등장 가능)
+  const specialRewardCards = [
+    { id: 'reward_score3000', title: '보너스 점수', desc: '스코어 3000점 즉시 획득.' },
+    { id: 'reward_heal50', title: '응급 처치', desc: '플레이어 체력 50 회복.' }
+  ];
+
+  const BULLET_CAP = 1500;
+
+  function spawnBullet(x,y,dx,dy, r=8, life=2000, color='#fff', damage=10, pierce=false, extra={}){
+    if(bullets.length > BULLET_CAP) return;
+    bullets.push({
+      x: x||0, y: y||0, dx: dx||0, dy: dy||0, r, life,
+      born: performance.now(), color, damage, pierce,
+      hits: 0,
+      weaponId: extra.weaponId || null,
+      outline: extra.outline || null,
+      maxPierceHits: extra.maxPierceHits || null,
+      instantKill: !!extra.instantKill,
+      isMega: !!extra.isMega,
+      alpha: extra.alpha ?? 1
+    });
+  }
+
+  function spawnFloatingText(text, x, y, color='#fff'){
+    floatingTexts.push({ text, x, y, color, born: performance.now(), life: 800 });
+  }
+
+  function spawnBloodPool(x, y, size){
+    bloodPools.push({ x, y, size, born: performance.now(), life: 600 });
+  }
+
+  function spawnGrenade(obj){ grenades.push(obj); }
+
+  function throwGrenade(targetX,targetY,{ignoreCooldown=false, fromBuff=false}={}){
+    const now = performance.now();
+    if(!ignoreCooldown && (now - lastGrenade < grenadeCooldown)) return false;
+    lastGrenade = now;
+    const sx = player.x, sy = player.y - 6;
+    const dx = targetX - sx, dy = targetY - sy;
+    const dist = Math.hypot(dx,dy);
+    const gravity = 1400;
+    const travelTime = Math.min(1.1, Math.max(0.45, dist / 900));
+    let vx = dx / travelTime;
+    let vy = (dy - 0.5 * gravity * travelTime * travelTime) / travelTime;
+    if(!isFinite(vx) || !isFinite(vy)){ vx = Math.sign(dx)*200; vy = -300; }
+    const baseRange = 110;
+    const range = buffs.grenadeRange ? Math.round(baseRange * 1.5) : baseRange;
+    const baseDamage = 340 + (buffs.grenadePlus200And10pctHP ? 200 : 0); // 수류탄 기본 340
+    spawnGrenade({ x: sx, y: sy, vx, vy, born: now, fuse: Math.ceil(travelTime*1000 + 200), explodeRadius: range, damage: baseDamage, targetX, targetY, fromBuff });
+    return true;
+  }
+
+  function maybeQueueExtraGrenade(targetX, targetY){
+    if(!buffs.g_doubleCast10) return;
+    if(Math.random() < 0.10){
+      queuedGrenades.push({ targetX, targetY, fromBuff: true });
+    }
+  }
+
+  function processQueuedGrenades(){
+    if(queuedGrenades.length === 0) return;
+    const next = queuedGrenades.shift();
+    // 버프 수류탄은 직접 생성 (플레이어 쿨타임에 영향 없음)
+    if(next.fromBuff){
+      const baseRange = 110;
+      const range = buffs.grenadeRange ? Math.round(baseRange * 1.5) : baseRange;
+      const baseDamage = 340 + (buffs.grenadePlus200And10pctHP ? 200 : 0);
+      spawnGrenade({ x: player.x, y: player.y - 6, vx: 0, vy: 0, born: performance.now(), fuse: 200, explodeRadius: range, damage: baseDamage, fromBuff: true, isQueuedGrenade: true });
+    } else {
+      throwGrenade(next.targetX, next.targetY, { ignoreCooldown: true, fromBuff: next.fromBuff });
+    }
+  }
+
+  function spawnZombie(){
+    const edge = Math.random();
+    const z = { r: Math.floor(rand(12,20)), speed: rand(18,45), hp: 1, colorPhase: Math.random() };
+    if(edge < 0.5){ z.x = rand(20, W-20); z.y = -30; }
+    else if(edge < 0.75){ z.x = -30; z.y = rand(20, H-120); }
+    else { z.x = W+30; z.y = rand(20, H-120); }
+    // 체력 증가 속도 1.5배 가중 + 단계적 난이도 증가
+    z.hp = Math.ceil(rand(1, 2 + (score/200)*1.5) * getLateGameMultiplier());
+    z.burnTime = 0;        // 일반 수류탄 화상 시간(ms)
+    z.poisonedTime = 0;    // 독 상태 시간(ms)
+    z.powerBurnTime = 0;   // 강력총 화상 시간(ms)
+    
+    // 2% 확률로 폭탄 좀비 생성
+    if(Math.random() < 0.02){
+      z.isBomb = true;
+      z.color = '#ff4444'; // 빨간색으로 구분
+    }
+    
+    zombies.push(z);
+  }
+
+  function spawnBoss(){
+    const base = 3000 + Math.floor((score/2)*1.5); // 보스 체력 증가 1.5배 가중
+    const hp = Math.ceil(base * getLateGameMultiplier()); // 단계적 난이도 증가
+    const b = { x: Math.random()*(W-200)+100, y: rand(50, H/2), r: 48, hp, maxHp: hp, speed: 18, attackCooldown: 0, warningTime: 0, isWarning:false, isMutant:false };
+    bosses.push(b);
+    flashTime = 160; flashX = b.x; flashY = b.y; flashR = 60; cameraShake = 18;
+  }
+
+  function spawnMutantBoss(){
+    const refBase = 3000 + Math.floor((score/2)*1.5);
+    const hp = Math.ceil(refBase * 4 * getLateGameMultiplier()); // 단계적 난이도 증가
+    const b = { x: Math.random()*(W-200)+100, y: rand(50, H/2), r: 96, hp, maxHp: hp, speed: 18, attackCooldown: 0, warningTime: 0, isWarning:false, isMutant:true };
+    bosses.push(b);
+    flashTime = 200; flashX = b.x; flashY = b.y; flashR = 90; cameraShake = 22;
+  }
+
+  function applyWeaponBuffs(){
+    // reset to base
+    for(let i=0;i<weapons.length;i++){
+      const base = BASE_WEAPONS[i];
+      weapons[i] = { ...weapons[i], ...base };
+    }
+    
+    // 기본총 +100 (탄두 증량)
+    if(buffs.basicPlus35){
+      weapons[0].damage += 100;
+    }
+    
+    // 기본총 각성
+    if(buffs.basicAwakening){
+      weapons[0].damage += 25;
+      weapons[0].bulletSpeed += 100;
+      weapons[0].fireRate = Math.max(100, weapons[0].fireRate - 15);
+    }
+    
+    // 강력총 각성
+    if(buffs.powerAwakening){
+      weapons[1].damage += 200;
+      weapons[1].fireRate = Math.max(100, weapons[1].fireRate - 150);
+    }
+    
+    // 관통대포 각성
+    if(buffs.pierceAwakening){
+      weapons[2].damage += 100;
+      weapons[2].bulletSpeed += 100;
+    }
+    
+    // 관통대포 -200 fireRate
+    if(buffs.pierceFaster200){
+      weapons[2].fireRate = Math.max(100, weapons[2].fireRate - 200);
+    }
+    // 강력총 -150 fireRate
+    if(buffs.powerFaster150){
+      weapons[1].fireRate = Math.max(100, weapons[1].fireRate - 150);
+    }
+  }
+
+  function updateWeaponStats(){
+    applyWeaponBuffs();
+    const w = weapons[currentWeapon];
+    player.fireRate = w.fireRate;
+    weaponNameEl.textContent = w.name;
+  }
+
+  function reset(){
+    score = 0; player.x = W/2; player.y = H-80;
+    player.health = 100; player.maxHealth = 100;
+    bullets = []; zombies = []; bosses = []; cards = [];
+    flameOrbs = []; poisonPools = []; healingOrbs = [];
+    floatingTexts = []; bloodPools = [];
+    grenades = []; queuedGrenades = [];
+    spawnInterval = 1200; spawnTimer = difficultyTimer = bossTimer = mutantTimer = 0;
+    running = true; lastGrenade = -99999; currentWeapon = 0;
+    grenadeCooldown = 5000; autoShootTimer = 0; poisonTimer = 0; flameOrbAngle = 0;
+    powerBurstTimer = 0; swordTimer = 0; safeguardWindow = []; safeguardActive = false; safeguardUntil = 0;
+    cardPicksRemaining = 0; specialRewardMode = false;
+    
+    // 특별 버프 변수 초기화
+    catPetTimer = 0; basicShotCount = 0; chainExplosions = []; slowedEnemies = []; cursedEnemies = [];
+    
+    // 게임 시간 초기화
+    gameStartTime = performance.now();
+    isLateGame = false;
+    
+    // 통계 초기화
+    weaponDamage = { basic: 0, power: 0, pierce: 0 };
+    updateHighScoresDisplay();
+
+    Object.keys(buffs).forEach(key => buffs[key] = false);
+    applyWeaponBuffs();
+    updateWeaponStats();
+    updateBuffDisplay();
+    updateHealthDisplay();
+    overlay.style.display = 'none';
+    cardOverlay.style.display = 'none';
+    startOverlay.style.display = 'block';
+    running = false;
+  }
+
+  function cleanupBullets(){
+    const now = performance.now();
+    bullets = bullets.filter(b => b && typeof b.born === 'number' && (now - b.born) < (b.life || 0));
+  }
+
+  function explodeGrenade(g, isZombieExplode = false){
+    if(!g) return;
+    try{
+      const radius = isZombieExplode ? 60 : g.explodeRadius;
+      const baseDamage = isZombieExplode ? 60 : g.damage;
+      // 시각 효과
+      flashTime = 200; flashX = g.x; flashY = g.y; flashR = radius; cameraShake = Math.max(cameraShake, 10);
+
+      // zombies
+      for(let i = zombies.length-1; i>=0; --i){
+        const z = zombies[i]; if(!z) continue;
+        const d = Math.hypot(z.x - g.x, z.y - g.y);
+        if(d <= radius + z.r){
+          let dmg = baseDamage;
+          if(!isZombieExplode){
+            if(buffs.buffGrenadePlus100 && g.fromBuff) dmg += 100;
+            if(buffs.grenadePlus50OnDOT && (z.burnTime>0 || z.poisonedTime>0 || z.powerBurnTime>0)) dmg += 50;
+          }
+          // 기본 데미지 환산
+          let hitDamage = Math.ceil(dmg / 10);
+          // 비보스 10% 추가
+          if(buffs.grenadePlus200And10pctHP && !isZombieExplode){
+            hitDamage += Math.ceil(z.hp * 0.10);
+          }
+          z.hp -= hitDamage;
+          if(z.hp <= 0){
+            let add = Math.ceil(12 + z.r + z.speed/3);
+            if(buffs.score15On1pct && Math.random() < 0.01) add = Math.ceil(add * 1.5);
+            score += add;
+            
+            // 폭탄 좀비 폭발 처리
+            if(z.isBomb){
+              const dist = Math.hypot(z.x - player.x, z.y - player.y);
+              if(dist < 60){ // 폭발 범위 60
+                if(!safeguardActive){
+                  player.health -= 35;
+                  spawnFloatingText('폭발! -35', player.x, player.y-20, '#ff4444');
+                  cameraShake = 8;
+                  if(player.health <= 0){ 
+                    player.health = 0; 
+                    running = false; 
+                    showOverlay('Game Over','클릭하거나 재시작 버튼으로 재시작'); 
+                  }
+                }
+                // 폭발 이펙트
+                flashTime = 100; flashX = z.x; flashY = z.y; flashR = 60;
+              }
+            }
+            
+            // 피 웅덩이 생성 (좀비 크기에 비례)
+            spawnBloodPool(z.x, z.y, z.r);
+            
+            for(let p=0;p<4;p++){
+              const a=Math.random()*Math.PI*2;
+              spawnBullet(z.x,z.y,Math.cos(a)*rand(90,240),Math.sin(a)*rand(90,240));
+            }
+            zombies.splice(i,1);
+          }else if(buffs.burnEffect && !isZombieExplode){
+            z.burnTime = 10000;
+          }
+        }
+      }
+
+      // bosses
+      for(let i = bosses.length-1; i>=0; --i){
+        const b = bosses[i]; if(!b) continue;
+        const d = Math.hypot(b.x - g.x, b.y - g.y);
+        if(d <= radius + b.r){
+          let dmg = baseDamage;
+          if(!isZombieExplode){
+            if(buffs.buffGrenadePlus100 && g.fromBuff) dmg += 100;
+            // DOT 추가 +50은 보스엔 미적용(명세가 비보스 위주)
+          }
+          if(buffs.bossDamage) dmg *= 1.4;
+          b.hp -= dmg;
+          if(b.hp <= 0){
+            score += 500;
+            // 드랍: 돌연변이면 2픽, 일반이면 1픽
+            spawnCard(b.x, b.y, b.isMutant ? 2 : 1);
+            bosses.splice(i,1);
+            cameraShake = 18;
+          }
+        }
+      }
+
+      // 폭발 파편 이펙트
+      if(!isZombieExplode){
+        for(let i=0;i<12;i++){
+          const a=Math.random()*Math.PI*2;
+          spawnBullet(g.x,g.y,Math.cos(a)*rand(120,360),Math.sin(a)*rand(120,360),4,700,'#ff6b6b',0);
+        }
+        
+        // 연쇄 폭발 (1초 후 3번) - 일반 수류탄 폭발에서만 발생 (고양이 펫 제외)
+        if(buffs.grenadeChain && !g.isChainExplosion && !g.isCatPet){
+          chainExplosions.push({ x: g.x, y: g.y, timer: 1000 });
+          chainExplosions.push({ x: g.x, y: g.y, timer: 1000 });
+          chainExplosions.push({ x: g.x, y: g.y, timer: 1000 });
+        }
+      }
+    }catch(e){ console.error('explodeGrenade error', e); }
+  }
+
+  function spawnCard(x, y, picks=1){
+    cards.push({ x, y, r: 12, color: '#8b5cf6', collected: false, picks });
+  }
+
+  function spawnHealingOrb(x, y){
+    healingOrbs.push({ x, y, r: 8, color: '#10b981', life: 10000, born: performance.now() });
+  }
+
+  function allNormalBuffsAcquired(){
+    const normalBuffIds = Object.keys(buffs).filter(id => !id.startsWith('gravityField') && !id.startsWith('scoreDamageBoost') && !id.startsWith('lifeSteal') && !id.startsWith('pierceSlow') && !id.startsWith('powerGrenadeDrop') && !id.startsWith('catPet') && !id.startsWith('valkyrieCurse') && !id.startsWith('basicBurst') && !id.startsWith('powerSpeedCrit') && !id.startsWith('grenadeChain'));
+    for(const id of normalBuffIds){
+      if(!buffs[id]) return false;
+    }
+    return true;
+  }
+
+  function getAcquiredBuffCount(){
+    return Object.values(buffs).filter(acquired => acquired).length;
+  }
+
+  function showCardSelection({picks=1, forceSpecial=false} = {}){
+    // 게임 일시정지
+    running = false;
+    
+    cardOverlay.style.display = 'block';
+    cardContainer.innerHTML = '';
+    specialRewardMode = forceSpecial || allNormalBuffsAcquired();
+    cardPicksRemaining = picks;
+    cardTitle.textContent = specialRewardMode ? '특별 보상 선택!' : '카드를 선택하세요!';
+    pickHint.textContent = picks > 1 ? `이번엔 ${picks}개를 선택할 수 있습니다.` : '';
+
+    let options = [];
+    if(specialRewardMode){
+      options = specialRewardCards;
+    }else{
+      const availableCards = cardData.filter(card => !buffs[card.id]);
+      const shuffled = [...availableCards].sort(() => Math.random() - 0.5);
+      
+      // 10개 이상 버프 획득 시 30% 확률로 특별 노랑 버프, 10% 확률로 프리즘 버프 추가
+      if(getAcquiredBuffCount() >= 10){
+        const random = Math.random();
+        if(random < 0.1){
+          // 10% 확률로 프리즘 버프
+          const prismCards = availableCards.filter(card => card.color === '#8b5cf6');
+          if(prismCards.length > 0){
+            const prismCard = prismCards[Math.floor(Math.random() * prismCards.length)];
+            options = [prismCard, ...shuffled.slice(0, 2)];
+          } else {
+            options = shuffled.slice(0, 3);
+          }
+        } else if(random < 0.4){
+          // 30% 확률로 특별 노랑 버프
+          const specialCards = availableCards.filter(card => card.color === '#fbbf24');
+          if(specialCards.length > 0){
+            const specialCard = specialCards[Math.floor(Math.random() * specialCards.length)];
+            options = [specialCard, ...shuffled.slice(0, 2)];
+          } else {
+            options = shuffled.slice(0, 3);
+          }
+        } else {
+          options = shuffled.slice(0, 3);
+        }
+      } else {
+        options = shuffled.slice(0, 3);
+      }
+    }
+
+    options.forEach(card => {
+      const cardEl = document.createElement('div');
+      cardEl.className = 'card';
+      if(card.color === '#fbbf24'){
+        cardEl.style.borderColor = '#fbbf24';
+        cardEl.style.boxShadow = '0 0 20px rgba(251, 191, 36, 0.5)';
+      } else if(card.color === '#8b5cf6'){
+        cardEl.style.borderColor = '#8b5cf6';
+        cardEl.style.boxShadow = '0 0 30px rgba(139, 92, 246, 0.8), 0 0 60px rgba(139, 92, 246, 0.4), inset 0 0 20px rgba(139, 92, 246, 0.2)';
+        cardEl.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(168, 85, 247, 0.1))';
+        cardEl.style.borderWidth = '3px';
+        cardEl.style.borderStyle = 'solid';
+        cardEl.style.borderImage = 'linear-gradient(45deg, #8b5cf6, #a855f7, #c084fc, #8b5cf6) 1';
+      }
+      cardEl.innerHTML = `<div class="card-title">${card.title}</div><div class="card-desc">${card.desc}</div>`;
+      cardEl.addEventListener('click', () => {
+        if(specialRewardMode){
+          selectSpecialReward(card.id);
+        }else{
+          selectCard(card.id);
+        }
+      });
+      cardContainer.appendChild(cardEl);
+    });
+  }
+
+  function selectSpecialReward(cardId){
+    if(cardId === 'reward_score3000'){
+      score += 3000;
+    }else if(cardId === 'reward_heal50'){
+      player.health = Math.min(player.maxHealth, player.health + 50);
+      updateHealthDisplay();
+    }
+    cardPicksRemaining--;
+    if(cardPicksRemaining <= 0){
+      cardOverlay.style.display = 'none';
+      // 게임 재개
+      running = true;
+    }else{
+      // 다음 선택을 위해 다시 카드 제공 (동일 스페셜 셋)
+      showCardSelection({picks: cardPicksRemaining, forceSpecial: true});
+    }
+  }
+
+  function selectCard(cardId){
+    buffs[cardId] = true;
+    // 즉시 반영
+    if(cardId === 'grenadeCooldown'){
+      grenadeCooldown = 1000;
+    } else if(cardId === 'doubleHealth'){
+      player.maxHealth = 200;
+      player.health = Math.min(player.health * 2, player.maxHealth);
+    } else if(cardId === 'flameOrbs'){
+      for(let i = 0; i < 3; i++){
+        flameOrbs.push({ angle: (i * Math.PI * 2) / 3, distance: 40 + i * 15, r: 8 });
+      }
+    } else if(cardId === 'catPet'){
+      // 고양이 펫 초기화
+      catPetTimer = 0;
+    }
+    applyWeaponBuffs();
+    updateWeaponStats();
+    updateBuffDisplay();
+    updateHealthDisplay();
+
+    cardPicksRemaining--;
+    if(cardPicksRemaining <= 0){
+      cardOverlay.style.display = 'none';
+      // 게임 재개
+      running = true;
+    }else{
+      // 다음 픽: 이미 고른 버프는 제외하고 재표시
+      showCardSelection({picks: cardPicksRemaining});
+    }
+  }
+
+  function updateBuffDisplay(){
+    buffList.innerHTML = '';
+    Object.keys(buffs).forEach(key => {
+      if(buffs[key]){
+        const buffEl = document.createElement('div');
+        buffEl.className = 'buff-item';
+        buffEl.textContent = buffNames[key];
+        
+        // 버프 등급에 따른 테두리 색상 설정
+        if(key.includes('gravityField') || key.includes('scoreDamageBoost') || key.includes('lifeSteal') || 
+           key.includes('pierceSlow') || key.includes('powerGrenadeDrop') || key.includes('catPet') || 
+           key.includes('valkyrieCurse') || key.includes('basicBurst') || key.includes('powerSpeedCrit') || 
+           key.includes('grenadeChain')){
+          // 특별 노랑 버프
+          buffEl.style.borderLeftColor = '#fbbf24';
+          buffEl.style.borderLeftWidth = '4px';
+          buffEl.style.borderLeftStyle = 'solid';
+          buffEl.style.background = 'linear-gradient(135deg, rgba(251,191,36,0.1), rgba(251,191,36,0.05))';
+          buffEl.style.boxShadow = '0 0 8px rgba(251,191,36,0.3)';
+        } else if(key.includes('basicAwakening') || key.includes('powerAwakening') || key.includes('pierceAwakening')){
+          // 프리즘 버프
+          buffEl.style.borderLeftColor = '#8b5cf6';
+          buffEl.style.borderLeftWidth = '4px';
+          buffEl.style.borderLeftStyle = 'solid';
+          buffEl.style.background = 'linear-gradient(135deg, rgba(139,92,246,0.1), rgba(139,92,246,0.05))';
+          buffEl.style.boxShadow = '0 0 12px rgba(139,92,246,0.5)';
+        } else {
+          // 일반 버프
+          buffEl.style.borderLeftColor = '#6b7280';
+          buffEl.style.borderLeftWidth = '3px';
+          buffEl.style.borderLeftStyle = 'solid';
+          buffEl.style.background = 'rgba(0,0,0,0.7)';
+        }
+        
+        buffList.appendChild(buffEl);
+      }
+    });
+  }
+
+  function updateHealthDisplay(){
+    const percentage = (player.health / player.maxHealth) * 100;
+    healthFill.style.width = percentage + '%';
+    healthEl.textContent = Math.floor(player.health) + ' / ' + player.maxHealth;
+  }
+
+  function autoPierceShoot(){
+    if(!buffs.autoPierce) return;
+    for(let i = 0; i < 8; i++){
+      const angle = (i * Math.PI * 2) / 8;
+      const bulletR = buffs.pierceSize ? 24 : 16;
+      spawnBullet(player.x, player.y, Math.cos(angle) * 400, Math.sin(angle) * 400, bulletR, 2000, '#ff4444', 50, true, { weaponId: 'pierce' });
+    }
+  }
+
+  function powerRadialShoot(){
+    if(!buffs.powerRadial10s) return;
+    const w = weapons[1];
+    for(let i=0;i<8;i++){
+      const angle = (i * Math.PI * 2) / 8;
+      spawnBullet(player.x, player.y, Math.cos(angle) * w.bulletSpeed, Math.sin(angle) * w.bulletSpeed, w.bulletR, 1200, w.color, w.damage, false, { weaponId: 'power' });
+    }
+  }
+
+  function fireSword(){
+    if(!buffs.swordEvery10s) return;
+    // 가시성↑(진한 반투명), 속도 약간 감소, 범위 약간 증가
+    const ang = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+    const speed = 540;      // 700 -> 540
+    const life = 320;       // 220 -> 320
+    const dmg = 400;
+    spawnBullet(
+      player.x + Math.cos(ang)*(player.r+12),
+      player.y + Math.sin(ang)*(player.r+12),
+      Math.cos(ang)*speed,
+      Math.sin(ang)*speed,
+      22,                   // 18 -> 22
+      life,
+      'rgba(250,252,255,0.9)',
+      dmg,
+      false,
+      { weaponId: 'sword', alpha: 0.9 }
+    );
+  }
+
+  function updateFlameOrbs(dt){
+    if(!buffs.flameOrbs) return;
+    flameOrbAngle += dt * 2;
+    flameOrbs.forEach(orb => {
+      orb.angle += dt * 2;
+      const x = player.x + Math.cos(orb.angle) * orb.distance;
+      const y = player.y + Math.sin(orb.angle) * orb.distance;
+      [...zombies, ...bosses].forEach(enemy => {
+        if(enemy && Math.hypot(x - enemy.x, y - enemy.y) < orb.r + enemy.r){
+          if(enemy.hp){
+            enemy.hp -= 100;
+            if(enemy.hp <= 0){
+              if(zombies.includes(enemy)){
+                let add = Math.ceil(10 + enemy.r + enemy.speed/4);
+                if(buffs.score15On1pct && Math.random() < 0.01) add = Math.ceil(add * 1.5);
+                score += add;
+                zombies.splice(zombies.indexOf(enemy), 1);
+              } else if(bosses.includes(enemy)){
+                const wasMutant = enemy.isMutant;
+                bosses.splice(bosses.indexOf(enemy), 1);
+                score += 500;
+                spawnCard(enemy.x, enemy.y, wasMutant ? 2 : 1);
+              }
+            }
+          }
+        }
+      });
+    });
+  }
+
+  function updatePoisonPools(dt){
+    if(!buffs.poisonPools) return;
+    poisonTimer += dt * 1000;
+    if(poisonTimer >= 15000){
+      poisonTimer = 0;
+      poisonPools.push({ x: player.x + rand(-100, 100), y: player.y + rand(-100, 100), r: 180, life: 5000, born: performance.now() }); // 범위 3배
+    }
+    for(let i = poisonPools.length - 1; i >= 0; i--){
+      const pool = poisonPools[i];
+      if(performance.now() - pool.born > pool.life){ poisonPools.splice(i, 1); continue; }
+      zombies.forEach(z => {
+        if(Math.hypot(z.x - pool.x, z.y - pool.y) < pool.r + z.r){
+          // 체력의 1%/s -> z.hp 단위 적용
+          z.hp -= (0.01 * z.hp) * dt;
+          z.poisonedTime = Math.min(2000, (z.poisonedTime || 0) + 1000 * dt);
+        }
+      });
+      bosses.forEach(b => {
+        if(Math.hypot(b.x - pool.x, b.y - pool.y) < pool.r + b.r){
+          b.hp -= (0.01 * b.hp) * dt;
+        }
+      });
+    }
+  }
+
+  function applySafeguard(dt){
+    const now = performance.now();
+    if(safeguardActive){
+      if(now > safeguardUntil){
+        safeguardActive = false;
+      }
+    }
+  }
+
+  // 특별 버프 기능들
+  function updateGravityField(dt){
+    if(!buffs.gravityField) return;
+    
+    // 중력장 데미지 (초당 60)
+    const gravityRadius = 120;
+    [...zombies, ...bosses].forEach(enemy => {
+      if(enemy && Math.hypot(enemy.x - player.x, enemy.y - player.y) < gravityRadius + enemy.r){
+        enemy.hp -= 60 * dt; // 초당 60 데미지
+      }
+    });
+  }
+
+  function getScoreDamageMultiplier(){
+    if(!buffs.scoreDamageBoost) return 1;
+    return 1 + (Math.floor(score / 2000) * 0.005); // 2000점당 0.5% 증가
+  }
+
+  function getGameTime(){
+    return (performance.now() - gameStartTime) / 1000; // 초 단위
+  }
+
+  function getBasicDamageBonus(){
+    const minutes = Math.floor(getGameTime() / 180); // 3분마다
+    return minutes * 10; // 3분마다 10 증가
+  }
+
+  function getLateGameMultiplier(){
+    const gameTime = getGameTime();
+    if(gameTime >= 2700) return 1.75; // 45분 후 75% 증가
+    if(gameTime >= 1800) return 1.5;  // 30분 후 50% 증가
+    if(gameTime >= 900) return 1.25;  // 15분 후 25% 증가
+    return 1; // 기본
+  }
+
+  function getLateGameSpawnMultiplier(){
+    const gameTime = getGameTime();
+    if(gameTime >= 2700) return 3;  // 45분 후 200% 증가
+    if(gameTime >= 1800) return 2.5; // 30분 후 150% 증가
+    if(gameTime >= 900) return 2;   // 15분 후 100% 증가
+    return 1; // 기본
+  }
+
+  function updateHighScores(score){
+    highScores.push(Math.floor(score));
+    highScores.sort((a, b) => b - a);
+    highScores = highScores.slice(0, 8); // 최대 8개만 유지
+    localStorage.setItem('zombieShooter_highScores', JSON.stringify(highScores));
+    updateHighScoresDisplay();
+  }
+
+  function updateHighScoresDisplay(){
+    highScoresEl.innerHTML = '';
+    highScores.forEach((score, index) => {
+      const scoreEl = document.createElement('div');
+      scoreEl.textContent = `${index + 1}. ${score.toLocaleString()}`;
+      scoreEl.style.color = index === 0 ? '#fbbf24' : '#cbd5e1';
+      highScoresEl.appendChild(scoreEl);
+    });
+  }
+
+  function updateCatPet(dt){
+    if(!buffs.catPet) return;
+    catPetTimer += dt * 1000;
+    if(catPetTimer >= 4000){ // 4초마다
+      catPetTimer = 0;
+      
+      // 좀비가 가장 많이 모인 구역 찾기
+      let maxZombies = 0;
+      let targetX = player.x;
+      let targetY = player.y;
+      
+      for(let i = 0; i < 8; i++){
+        const angle = (i * Math.PI * 2) / 8;
+        const checkX = player.x + Math.cos(angle) * 150;
+        const checkY = player.y + Math.sin(angle) * 150;
+        
+        let zombieCount = 0;
+        zombies.forEach(z => {
+          if(Math.hypot(z.x - checkX, z.y - checkY) < 80){
+            zombieCount++;
+          }
+        });
+        
+        if(zombieCount > maxZombies){
+          maxZombies = zombieCount;
+          targetX = checkX;
+          targetY = checkY;
+        }
+      }
+      
+      // 고양이 펫 전용 수류탄 생성 (쿨타임 무시)
+      const sx = player.x + 30, sy = player.y - 20; // 고양이 위치
+      const dx = targetX - sx, dy = targetY - sy;
+      const dist = Math.hypot(dx,dy);
+      const gravity = 1400;
+      const travelTime = Math.min(1.1, Math.max(0.45, dist / 900));
+      let vx = dx / travelTime;
+      let vy = (dy - 0.5 * gravity * travelTime * travelTime) / travelTime;
+      if(!isFinite(vx) || !isFinite(vy)){ vx = Math.sign(dx)*200; vy = -300; }
+      const baseRange = 110;
+      const range = buffs.grenadeRange ? Math.round(baseRange * 1.5) : baseRange;
+      const baseDamage = 500; // 고양이 펫 전용 데미지
+      spawnGrenade({ x: sx, y: sy, vx, vy, born: performance.now(), fuse: Math.ceil(travelTime*1000 + 200), explodeRadius: range, damage: baseDamage, targetX, targetY, fromBuff: true, isCatPet: true });
+    }
+  }
+
+  function updateChainExplosions(dt){
+    for(let i = chainExplosions.length - 1; i >= 0; i--){
+      const explosion = chainExplosions[i];
+      explosion.timer -= dt * 1000;
+      
+      if(explosion.timer <= 0){
+        // 연쇄 폭발 수류탄 생성 (쿨타임 무시)
+        const baseRange = 60;
+        const range = buffs.grenadeRange ? Math.round(baseRange * 1.5) : baseRange;
+        const baseDamage = 100;
+        spawnGrenade({ x: explosion.x, y: explosion.y, vx: 0, vy: 0, born: performance.now(), fuse: 100, explodeRadius: range, damage: baseDamage, fromBuff: true, isChainExplosion: true });
+        chainExplosions.splice(i, 1);
+      }
+    }
+  }
+
+  function updateSlowedEnemies(dt){
+    for(let i = slowedEnemies.length - 1; i >= 0; i--){
+      const enemy = slowedEnemies[i];
+      enemy.timer -= dt * 1000;
+      
+      if(enemy.timer <= 0){
+        enemy.enemy.speed = enemy.originalSpeed;
+        slowedEnemies.splice(i, 1);
+      }
+    }
+  }
+
+  function update(dt){
+    if(!running) return;
+    const now = performance.now();
+    let mvx=0, mvy=0;
+    if(keys['arrowleft']||keys['a']) mvx -= 1;
+    if(keys['arrowright']||keys['d']) mvx += 1;
+    if(keys['arrowup']||keys['w']) mvy -= 1;
+    if(keys['arrowdown']||keys['s']) mvy += 1;
+    
+    // 모바일 조이스틱 입력 처리
+    if(joystickActive){
+      mvx = joystickOffset.x;
+      mvy = joystickOffset.y;
+    }
+    
+    if(mvx||mvy){ const L=Math.hypot(mvx,mvy); mvx/=L; mvy/=L; }
+
+    const safeguardSpeed = (safeguardActive ? 2 : 1);
+    const speedMultiplier = (buffs.speedDodge ? 1.5 : 1) * safeguardSpeed;
+    player.x += mvx * player.speed * speedMultiplier * dt;
+    player.y += mvy * player.speed * speedMultiplier * dt;
+    player.x = Math.max(20, Math.min(W-20, player.x));
+    player.y = Math.max(20, Math.min(H-20, player.y));
+
+    // 발사
+    if((mouse.down||keys[' ']) && now - player.lastShot > (player.fireRate||1000)){
+      const ang = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+      const w = weapons[currentWeapon] || weapons[0];
+
+      // 기본총: 특수탄 확률 처리
+      if(currentWeapon === 0){
+        // 기본총 버스트 (30발마다 10발 추가)
+        if(buffs.basicBurst){
+          basicShotCount++;
+          if(basicShotCount >= 30){
+            basicShotCount = 0;
+            // 10발 추가 발사
+            for(let i = 0; i < 10; i++){
+              const spreadAngle = ang + (Math.random() - 0.5) * 0.3;
+              spawnBullet(player.x + Math.cos(spreadAngle)*(player.r+8), player.y + Math.sin(spreadAngle)*(player.r+8),
+                Math.cos(spreadAngle)*w.bulletSpeed, Math.sin(spreadAngle)*w.bulletSpeed,
+                w.bulletR, 2000, '#ff6b35', 250, false, { weaponId: 'basic' });
+            }
+          }
+        }
+        
+        // 기본총 각성: 35발마다 랜덤 탄환
+        if(buffs.basicAwakening){
+          basicShotCount++;
+          if(basicShotCount >= 35){
+            basicShotCount = 0;
+            const randomWeapon = Math.random();
+            if(randomWeapon < 0.5){
+              // 관통 대포 탄환
+              spawnBullet(player.x + Math.cos(ang)*(player.r+8), player.y + Math.sin(ang)*(player.r+8),
+                Math.cos(ang)*weapons[2].bulletSpeed, Math.sin(ang)*weapons[2].bulletSpeed,
+                weapons[2].bulletR, 2000, weapons[2].color, weapons[2].damage, true, { weaponId: 'pierce' });
+            } else {
+              // 강력총 탄환
+              spawnBullet(player.x + Math.cos(ang)*(player.r+8), player.y + Math.sin(ang)*(player.r+8),
+                Math.cos(ang)*weapons[1].bulletSpeed, Math.sin(ang)*weapons[1].bulletSpeed,
+                weapons[1].bulletR, 2000, weapons[1].color, weapons[1].damage, false, { weaponId: 'power' });
+            }
+          }
+        }
+        
+        // 신의 탄환 (0.06%)
+        if(buffs.basicInstakillRare && Math.random() < 0.0006){
+          spawnBullet(player.x + Math.cos(ang)*(player.r+8), player.y + Math.sin(ang)*(player.r+8),
+            Math.cos(ang)*w.bulletSpeed, Math.sin(ang)*w.bulletSpeed,
+            w.bulletR+2, 2000, '#3b82f6', 9999999, false,
+            { weaponId: 'basic', instantKill: true, outline: '#ef4444' });
+        }else if(buffs.basicMega005 && Math.random() < 0.01){ // 1%로 증가
+          // 극대 탄: 40배, 관통 5
+          spawnBullet(player.x + Math.cos(ang)*(player.r+8), player.y + Math.sin(ang)*(player.r+8),
+            Math.cos(ang)*w.bulletSpeed, Math.sin(ang)*w.bulletSpeed,
+            w.bulletR*5, 2000, '#facc15', w.damage*40, true,
+            { weaponId: 'basic', isMega: true, outline: '#22c55e', maxPierceHits: 5 });
+        }else{
+          // 기본총 시간 데미지 보너스 적용
+          const timeBonus = getBasicDamageBonus();
+          const totalDamage = w.damage + timeBonus;
+          
+          spawnBullet(player.x + Math.cos(ang)*(player.r+8), player.y + Math.sin(ang)*(player.r+8),
+            Math.cos(ang)*w.bulletSpeed, Math.sin(ang)*w.bulletSpeed,
+            w.bulletR, 2000, w.color, totalDamage, false, { weaponId: 'basic' });
+        }
+      } else if(currentWeapon === 1){
+        // 강력총: 20% 추가탄, DOT(버프4), 속도+치명타
+        const bulletSpeed = buffs.powerSpeedCrit ? w.bulletSpeed + 100 : w.bulletSpeed;
+        spawnBullet(player.x + Math.cos(ang)*(player.r+8), player.y + Math.sin(ang)*(player.r+8),
+          Math.cos(ang)*bulletSpeed, Math.sin(ang)*bulletSpeed,
+          w.bulletR, 2000, w.color, w.damage, false, { weaponId: 'power' });
+        if(buffs.powerExtraBullet20 && Math.random()<0.5){ // 50%로 증가
+          spawnBullet(player.x + Math.cos(ang)*(player.r+8), player.y + Math.sin(ang)*(player.r+8),
+            Math.cos(ang)*bulletSpeed, Math.sin(ang)*bulletSpeed,
+            w.bulletR, 2000, w.color, w.damage, false, { weaponId: 'power' });
+        }
+      } else {
+        // 관통대포
+        const bulletR = buffs.pierceSize ? 24 : w.bulletR;
+        spawnBullet(player.x + Math.cos(ang)*(player.r+8), player.y + Math.sin(ang)*(player.r+8),
+          Math.cos(ang)*w.bulletSpeed, Math.sin(ang)*w.bulletSpeed,
+          bulletR, 2000, w.color, w.damage, true, { weaponId: 'pierce' });
+      }
+      player.lastShot = now;
+    }
+
+    // 자동 관통
+    autoShootTimer += dt * 1000;
+    if(autoShootTimer >= 10000){
+      autoShootTimer = 0;
+      autoPierceShoot();
+    }
+
+    // 10초마다 강력총 방사(버프12)
+    powerBurstTimer += dt * 1000;
+    if(powerBurstTimer >= 10000){
+      powerBurstTimer = 0;
+      powerRadialShoot();
+    }
+
+    // 10초마다 전방 검(버프10)
+    swordTimer += dt * 1000;
+    if(swordTimer >= 10000){
+      swordTimer = 0;
+      fireSword();
+    }
+
+    updateFlameOrbs(dt);
+    updatePoisonPools(dt);
+    applySafeguard(dt);
+    
+    // 특별 버프 업데이트
+    updateGravityField(dt);
+    updateCatPet(dt);
+    updateChainExplosions(dt);
+    updateSlowedEnemies(dt);
+
+    // 총알 이동
+    cleanupBullets();
+    for(let i = bullets.length-1; i>=0; --i){
+      const b = bullets[i]; if(!b){ bullets.splice(i,1); continue; }
+      b.x += b.dx * dt; b.y += b.dy * dt;
+    }
+
+    // 수류탄 물리
+    for(let gi = grenades.length-1; gi>=0; --gi){
+      const g = grenades[gi];
+      const gravity = 1400;
+      g.vy += gravity * dt; g.x += g.vx * dt; g.y += g.vy * dt;
+      if(g.targetX !== undefined){
+        const td = Math.hypot(g.x - g.targetX, g.y - g.targetY);
+        if(td < 22){ explodeGrenade(g); grenades.splice(gi,1); processQueuedGrenades(); continue; }
+      }
+      if(now - g.born > g.fuse){ explodeGrenade(g); grenades.splice(gi,1); processQueuedGrenades(); continue; }
+      if(g.y > H-10){ explodeGrenade(g); grenades.splice(gi,1); processQueuedGrenades(); continue; }
+    }
+
+    // 게임 시간 체크 (단계적 난이도 증가는 getLateGameMultiplier에서 처리)
+    
+    // 스폰 및 난이도: 증가율 1.5배 가속 -> 0.92 → 0.88
+    spawnTimer += dt*1000; difficultyTimer += dt*1000; bossTimer += dt*1000; mutantTimer += dt*1000;
+    if(spawnTimer > spawnInterval * getLateGameSpawnMultiplier()){ spawnTimer = 0; spawnZombie(); }
+    if(difficultyTimer > 8000){ difficultyTimer = 0; spawnInterval = Math.max(300, spawnInterval * 0.88); }
+    // 매 5분 돌연변이 보스, 해당 분의 일반 보스는 대체
+    if(mutantTimer > 300000){ mutantTimer = 0; bossTimer = 0; spawnMutantBoss(); }
+    else if(bossTimer > 60000){ bossTimer = 0; spawnBoss(); }
+
+    // 좀비 이동 및 DOT
+    for(let i=0;i<zombies.length;i++){
+      const z = zombies[i]; if(!z) continue;
+      const ang = Math.atan2(player.y - z.y, player.x - z.x);
+      
+      // 중력장 효과 적용
+      let currentSpeed = z.speed;
+      if(buffs.gravityField && Math.hypot(z.x - player.x, z.y - player.y) < 120 + z.r){
+        currentSpeed *= 0.75; // 25% 감소
+      }
+      
+      z.x += Math.cos(ang) * currentSpeed * dt; z.y += Math.sin(ang) * currentSpeed * dt;
+
+      // 수류탄 화상: DPS = 50 + 5% 체력/초 -> z.hp 단위 환산
+      if(z.burnTime > 0){
+        z.burnTime -= dt * 1000;
+        const perSec = (50/10) + 0.05 * z.hp; // 5 + 5% of current hp
+        z.hp -= perSec * dt;
+      }
+      // 강력총 화상: 초당 80 -> z.hp 단위로 8
+      if(z.powerBurnTime > 0){
+        z.powerBurnTime -= dt * 1000;
+        z.hp -= 8 * dt;
+      }
+      if(z.poisonedTime > 0){
+        z.poisonedTime -= dt * 1000;
+      }
+
+      if(z.hp <= 0){
+        let add = Math.ceil(10 + z.r + z.speed/4);
+        if(buffs.score15On1pct && Math.random() < 0.01) add = Math.ceil(add * 1.5);
+        score += add;
+        zombies.splice(i,1);
+        i--;
+      }
+    }
+
+    // 총알-좀비 충돌
+    for(let i = zombies.length-1; i>=0; --i){
+      const z = zombies[i]; if(!z) continue;
+      for(let j = bullets.length-1; j>=0; --j){
+        const b = bullets[j]; if(!b){ bullets.splice(j,1); continue; }
+        const d = Math.hypot(z.x - b.x, z.y - b.y);
+        if(d < z.r + b.r){
+          if(b.instantKill){
+            spawnFloatingText('즉사!!', z.x, z.y-10, '#60a5fa');
+            let add = Math.ceil(10 + z.r + z.speed/4);
+            if(buffs.score15On1pct && Math.random() < 0.01) add = Math.ceil(add * 1.5);
+            score += add;
+            zombies.splice(i,1);
+            bullets.splice(j,1);
+            break;
+          }
+          // 피해 계산
+          let raw = b.damage||0;
+          let crit = false;
+          if(b.weaponId === 'pierce' && buffs.pierceCrit20 && Math.random() < 0.2){
+            raw *= 1.5;
+            crit = true;
+          }
+          if(b.weaponId === 'power' && (buffs.powerSpeedCrit || buffs.powerAwakening) && Math.random() < 0.2){
+            raw *= (buffs.powerAwakening ? 1.8 : 1.5); // 각성 시 1.8배, 일반 시 1.5배
+            crit = true;
+          }
+          
+          // 강력총 각성: 필수 치명타 + 체력 2% 추가 피해
+          if(b.weaponId === 'power' && buffs.powerAwakening){
+            raw *= 1.8;
+            raw += z.hp * 0.02; // 체력의 2% 추가 피해
+            crit = true;
+          }
+          
+          // 스코어 데미지 부스트 적용
+          raw *= getScoreDamageMultiplier();
+          
+          // 발키리의 저주 적용
+          if(buffs.valkyrieCurse && b.weaponId === 'power'){
+            if(!cursedEnemies.find(ce => ce.enemy === z)){
+              cursedEnemies.push({ enemy: z, multiplier: 1.1 });
+            } else {
+              const curse = cursedEnemies.find(ce => ce.enemy === z);
+              curse.multiplier += 0.1;
+            }
+          }
+          
+          let damage = Math.ceil(raw/10);
+          
+          // 저주된 적에게 추가 피해
+          const curse = cursedEnemies.find(ce => ce.enemy === z);
+          if(curse){
+            damage = Math.ceil(damage * curse.multiplier);
+          }
+          
+          // 무기별 데미지 추적
+          if(b.weaponId === 'basic') weaponDamage.basic += damage;
+          else if(b.weaponId === 'power') weaponDamage.power += damage;
+          else if(b.weaponId === 'pierce') weaponDamage.pierce += damage;
+          
+          z.hp -= damage;
+
+          if(crit){
+            spawnFloatingText('크리티컬!', z.x, z.y-12, '#fbbf24');
+          }
+
+          // 강력총 DOT & 넉백 & 검 타격 텍스트
+          if(b.weaponId === 'power'){
+            if(buffs.powerBurn80) z.powerBurnTime = Math.max(z.powerBurnTime, 10000);
+            if(buffs.powerKnockback){
+              const ang = Math.atan2(z.y - b.y, z.x - b.x);
+              z.x += Math.cos(ang) * 10;
+              z.y += Math.sin(ang) * 10;
+            }
+          } else if(b.weaponId === 'sword'){
+            spawnFloatingText('스매시!', z.x, z.y-10, '#e2e8f0');
+          }
+          
+          // 생명력 흡수 (1% 확률)
+          if(buffs.lifeSteal && Math.random() < 0.01){
+            player.health = Math.min(player.maxHealth, player.health + 10);
+            spawnFloatingText('+10', player.x, player.y-20, '#10b981');
+          }
+          
+          // 관통 슬로우 (3초간 10% 감소)
+          if(buffs.pierceSlow && b.weaponId === 'pierce'){
+            if(!slowedEnemies.find(se => se.enemy === z)){
+              const originalSpeed = z.speed;
+              z.speed *= 0.9; // 10% 감소
+              slowedEnemies.push({ enemy: z, originalSpeed, timer: 3000 });
+            }
+          }
+
+          // 관통 처리
+          if(!b.pierce){
+            bullets.splice(j,1);
+          }else{
+            b.hits++;
+            const limit = b.maxPierceHits ?? (buffs.pierceCount ? 10 : 5);
+            if(b.hits >= limit) {
+              // 관통대포 각성: 관통 완료 시 수류탄 폭발
+              if(buffs.pierceAwakening && b.weaponId === 'pierce'){
+                explodeGrenade({x: b.x, y: b.y, explodeRadius: 80, damage: 200, fromBuff: true}, false);
+              }
+              bullets.splice(j,1);
+            }
+          }
+
+          if(z.hp <= 0){
+            let add = Math.ceil(10 + z.r + z.speed/4);
+            if(buffs.score15On1pct && Math.random() < 0.01) add = Math.ceil(add * 1.5);
+            score += add;
+
+            // 폭탄 좀비 폭발 처리
+            if(z.isBomb){
+              const dist = Math.hypot(z.x - player.x, z.y - player.y);
+              if(dist < 60){ // 폭발 범위 60
+                if(!safeguardActive){
+                  player.health -= 35;
+                  spawnFloatingText('폭발! -35', player.x, player.y-20, '#ff4444');
+                  cameraShake = 8;
+                  if(player.health <= 0){ 
+                    player.health = 0; 
+                    running = false; 
+                    showOverlay('Game Over','클릭하거나 재시작 버튼으로 재시작'); 
+                  }
+                }
+                // 폭발 이펙트
+                flashTime = 100; flashX = z.x; flashY = z.y; flashR = 60;
+              }
+            }
+
+            // 피 웅덩이 생성 (좀비 크기에 비례)
+            spawnBloodPool(z.x, z.y, z.r);
+
+            if(buffs.zombieExplode){
+              explodeGrenade({x: z.x, y: z.y, explodeRadius: 60, damage: 60, fromBuff:false}, true);
+            }
+            if(buffs.healingOrbs && Math.random() < 0.025){ // 2.5%
+              spawnHealingOrb(z.x, z.y);
+            }
+            
+            // 강력총으로 처치 시 수류탄 2개 드롭
+            if(buffs.powerGrenadeDrop && b.weaponId === 'power'){
+              for(let g = 0; g < 2; g++){
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 30;
+                const gx = z.x + Math.cos(angle) * distance;
+                const gy = z.y + Math.sin(angle) * distance;
+                // 강력폭발 수류탄 생성 (쿨타임 무시)
+                const baseRange = 110;
+                const range = buffs.grenadeRange ? Math.round(baseRange * 1.5) : baseRange;
+                const baseDamage = 340 + (buffs.grenadePlus200And10pctHP ? 200 : 0);
+                spawnGrenade({ x: gx, y: gy, vx: 0, vy: 0, born: performance.now(), fuse: 200, explodeRadius: range, damage: baseDamage, fromBuff: true, isPowerGrenade: true });
+              }
+            }
+            
+            for(let p=0;p<4;p++){
+              const a = Math.random()*Math.PI*2;
+              spawnBullet(z.x, z.y, Math.cos(a)*rand(90,240), Math.sin(a)*rand(90,240));
+            }
+            zombies.splice(i,1);
+            if(!b.pierce) break;
+          }
+        }
+      }
+    }
+
+    // 총알-보스 충돌
+    for(let bi = bosses.length-1; bi>=0; --bi){
+      const boss = bosses[bi]; if(!boss) continue;
+      for(let j = bullets.length-1; j>=0; --j){
+        const b = bullets[j]; if(!b){ bullets.splice(j,1); continue; }
+        const d = Math.hypot(boss.x - b.x, boss.y - b.y);
+        if(d < boss.r + b.r){
+          let damage = b.damage||0;
+          let crit = false;
+          if(b.weaponId === 'pierce' && buffs.pierceCrit20 && Math.random() < 0.2){
+            damage *= 1.5;
+            crit = true;
+          }
+          if(b.weaponId === 'power' && (buffs.powerSpeedCrit || buffs.powerAwakening) && Math.random() < 0.2){
+            damage *= (buffs.powerAwakening ? 1.8 : 1.5);
+            crit = true;
+          }
+          
+          // 강력총 각성: 필수 치명타 + 체력 2% 추가 피해
+          if(b.weaponId === 'power' && buffs.powerAwakening){
+            damage *= 1.8;
+            damage += boss.hp * 0.02; // 체력의 2% 추가 피해
+            crit = true;
+          }
+          
+          // 스코어 데미지 부스트 적용
+          damage *= getScoreDamageMultiplier();
+          
+          if(buffs.bossDamage) damage *= 1.4;
+          
+          // 보스 무기별 데미지 추적
+          if(b.weaponId === 'basic') weaponDamage.basic += damage;
+          else if(b.weaponId === 'power') weaponDamage.power += damage;
+          else if(b.weaponId === 'pierce') weaponDamage.pierce += damage;
+          
+          boss.hp -= damage;
+
+          if(crit){
+            spawnFloatingText('크리티컬!', boss.x, boss.y-boss.r-6, '#fbbf24');
+          }
+          if(b.weaponId === 'sword'){
+            spawnFloatingText('스매시!', boss.x, boss.y-boss.r-6, '#e2e8f0');
+          }
+
+          if(!b.pierce){
+            bullets.splice(j,1);
+          }else{
+            b.hits++;
+            const limit = b.maxPierceHits ?? (buffs.pierceCount ? 8 : 3);
+            if(b.hits >= limit) {
+              // 관통대포 각성: 관통 완료 시 수류탄 폭발
+              if(buffs.pierceAwakening && b.weaponId === 'pierce'){
+                explodeGrenade({x: b.x, y: b.y, explodeRadius: 80, damage: 200, fromBuff: true}, false);
+              }
+              bullets.splice(j,1);
+            }
+          }
+          if(boss.hp <= 0){
+            score += 500;
+            const wasMutant = boss.isMutant;
+            spawnCard(boss.x, boss.y, wasMutant ? 2 : 1);
+            bosses.splice(bi,1);
+            cameraShake = 18;
+            if(!b.pierce) break;
+          }
+        }
+      }
+    }
+
+    // 보스 이동 및 공격 경고
+    for(let bi = bosses.length-1; bi>=0; --bi){
+      const b = bosses[bi]; if(!b) continue;
+      const ang = Math.atan2(player.y - b.y, player.x - b.x);
+      
+      // 중력장 효과 적용
+      let currentSpeed = b.speed;
+      if(buffs.gravityField && Math.hypot(b.x - player.x, b.y - player.y) < 120 + b.r){
+        currentSpeed *= 0.75; // 25% 감소
+      }
+      
+      b.x += Math.cos(ang) * currentSpeed * dt; b.y += Math.sin(ang) * currentSpeed * dt;
+      const dist = Math.hypot(player.x - b.x, player.y - b.y);
+      if(dist < 140 && b.attackCooldown <= 0 && !b.isWarning){
+        b.isWarning = true; b.warningTime = performance.now(); b.attackCooldown = 2400;
+      }
+      if(b.isWarning){
+        if(performance.now() - b.warningTime > 1000){
+          if(Math.hypot(player.x - b.x, player.y - b.y) < 72){
+            if(!safeguardActive){
+              registerDamageEvent();
+              player.health -= 40;
+              cameraShake = 10;
+              if(player.health <= 0){ player.health = 0; running = false; showOverlay('Game Over','클릭하거나 재시작 버튼으로 재시작'); }
+            }
+          }
+          b.isWarning = false;
+        }
+      }
+      if(b.attackCooldown > 0) b.attackCooldown -= dt*1000;
+      if(b.y > H + 200) bosses.splice(bi,1);
+    }
+
+    // 플레이어-좀비 충돌
+    for(let i = zombies.length-1; i>=0; --i){
+      const z = zombies[i]; if(!z) continue;
+      const d = Math.hypot(z.x - player.x, z.y - player.y);
+      if(d < z.r + player.r){
+        if(safeguardActive){
+          // 무적
+        }else if(buffs.speedDodge && Math.random() < 0.15){
+          // 회피 성공 - 수류탄 3개
+          for(let k = 0; k < 3; k++){
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 50;
+            const tx = player.x + Math.cos(angle) * dist;
+            const ty = player.y + Math.sin(angle) * dist;
+            // 회피 수류탄 생성 (쿨타임 무시)
+            const baseRange = 110;
+            const range = buffs.grenadeRange ? Math.round(baseRange * 1.5) : baseRange;
+            const baseDamage = 340 + (buffs.grenadePlus200And10pctHP ? 200 : 0);
+            spawnGrenade({ x: tx, y: ty, vx: 0, vy: 0, born: performance.now(), fuse: 200, explodeRadius: range, damage: baseDamage, fromBuff: true, isDodgeGrenade: true });
+          }
+        }else{
+          registerDamageEvent();
+          let damage = 8 + Math.floor(z.r/3);
+          if(isLateGame) damage += 5; // 25분 후 5 추가 피해
+          player.health -= damage;
+          const ang = Math.atan2(player.y - z.y, player.x - z.x);
+          player.x += Math.cos(ang) * 18;
+          player.y += Math.sin(ang) * 18;
+        }
+        zombies.splice(i,1);
+        if(player.health <= 0){ player.health = 0; running = false; showOverlay('Game Over','클릭하거나 재시작 버튼으로 재시작'); }
+      }
+    }
+
+    // 카드 수집
+    for(let i = cards.length-1; i>=0; --i){
+      const c = cards[i]; if(!c) continue;
+      if(Math.hypot(player.x-c.x, player.y-c.y) < 20){
+        const picks = c.picks || 1;
+        cards.splice(i,1);
+        showCardSelection({picks});
+      }
+    }
+
+    // 회복구슬 수집
+    for(let i = healingOrbs.length-1; i>=0; --i){
+      const h = healingOrbs[i]; if(!h) continue;
+      if(Math.hypot(player.x-h.x, player.y-h.y) < 20){
+        player.health = Math.min(player.maxHealth, player.health + 50); // 50 회복
+        healingOrbs.splice(i,1);
+      } else if(performance.now() - h.born > h.life){
+        healingOrbs.splice(i,1);
+      }
+    }
+
+    // 떠있는 텍스트 정리
+    floatingTexts = floatingTexts.filter(ft => (now - ft.born) < ft.life);
+
+    // 피 웅덩이 정리
+    bloodPools = bloodPools.filter(bp => (now - bp.born) < bp.life);
+
+    if(flashTime>0) flashTime = Math.max(0, flashTime - dt*1000);
+    if(cameraShake>0) cameraShake = Math.max(0, cameraShake - dt*60);
+
+    // UI
+    scoreEl.textContent = Math.floor(score);
+    updateHealthDisplay();
+    zcountEl.textContent = zombies.length + bosses.length;
+
+    const timeSince = now - lastGrenade;
+    grenadeStatusEl.textContent = timeSince >= grenadeCooldown ? '수류탄: 준비 완료 (R)' : '수류탄: 재사용 대기 ' + Math.ceil((grenadeCooldown - timeSince)/1000) + 's';
+  }
+
+  function registerDamageEvent(){
+    if(!buffs.safeguard5s) return;
+    const now = performance.now();
+    safeguardWindow.push(now);
+    while(safeguardWindow.length && now - safeguardWindow[0] > 2000) safeguardWindow.shift();
+    if(safeguardWindow.length >= 3 && !safeguardActive){
+      safeguardActive = true;
+      safeguardUntil = now + 5000;
+      safeguardWindow = [];
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.save(); if(cameraShake>0) ctx.translate((Math.random()-0.5)*cameraShake, (Math.random()-0.5)*cameraShake);
+
+    // 배경 그리드
+    ctx.save(); ctx.globalAlpha = 0.05;
+    for(let gx=0; gx<W; gx+=40){ ctx.fillRect(gx,0,1,H); }
+    for(let gy=0; gy<H; gy+=40){ ctx.fillRect(0,gy,W,1); }
+    ctx.restore();
+
+    // 총알
+    bullets.forEach(b => {
+      if(!b) return;
+      ctx.save();
+      if(b.alpha !== undefined) ctx.globalAlpha = b.alpha;
+      ctx.beginPath();
+      ctx.fillStyle = b.color || '#fff';
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+      ctx.fill();
+      if(b.outline){
+        ctx.strokeStyle = b.outline;
+        ctx.lineWidth = b.isMega ? 3 : 2;
+        ctx.stroke();
+      }else if(b.weaponId === 'sword'){
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }else if(b.pierce){
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      ctx.restore();
+    });
+
+    // 수류탄
+    grenades.forEach(g => {
+      ctx.beginPath();
+      // 고양이 펫 수류탄은 다른 색상
+      if(g.isCatPet){
+        ctx.fillStyle = '#f59e0b'; // 주황색
+        ctx.arc(g.x, g.y, 8, 0, Math.PI*2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(245,158,11,0.8)';
+        ctx.lineWidth = 2;
+        ctx.arc(g.x, g.y, 14, 0, Math.PI*2);
+        ctx.stroke();
+        // 고양이 수류탄 표시
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('🐱', g.x, g.y + 3);
+      } else if(g.isChainExplosion){
+        // 연쇄폭발 수류탄
+        ctx.fillStyle = '#ef4444'; // 빨간색
+        ctx.arc(g.x, g.y, 6, 0, Math.PI*2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(239,68,68,0.8)';
+        ctx.lineWidth = 2;
+        ctx.arc(g.x, g.y, 12, 0, Math.PI*2);
+        ctx.stroke();
+        // 연쇄폭발 표시
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 8px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('💥', g.x, g.y + 2);
+      } else if(g.isPowerGrenade){
+        // 강력폭발 수류탄
+        ctx.fillStyle = '#8b5cf6'; // 보라색
+        ctx.arc(g.x, g.y, 7, 0, Math.PI*2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(139,92,246,0.8)';
+        ctx.lineWidth = 2;
+        ctx.arc(g.x, g.y, 13, 0, Math.PI*2);
+        ctx.stroke();
+        // 강력폭발 표시
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 8px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('⚡', g.x, g.y + 2);
+      } else if(g.isDodgeGrenade){
+        // 회피 수류탄
+        ctx.fillStyle = '#10b981'; // 초록색
+        ctx.arc(g.x, g.y, 6, 0, Math.PI*2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(16,185,129,0.8)';
+        ctx.lineWidth = 2;
+        ctx.arc(g.x, g.y, 12, 0, Math.PI*2);
+        ctx.stroke();
+        // 회피 표시
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 8px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('💨', g.x, g.y + 2);
+      } else if(g.isQueuedGrenade){
+        // 대기열 수류탄 (이중 기폭)
+        ctx.fillStyle = '#f97316'; // 주황색
+        ctx.arc(g.x, g.y, 6, 0, Math.PI*2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(249,115,22,0.8)';
+        ctx.lineWidth = 2;
+        ctx.arc(g.x, g.y, 12, 0, Math.PI*2);
+        ctx.stroke();
+        // 대기열 표시
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 8px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('✨', g.x, g.y + 2);
+      } else {
+        // 플레이어 수류탄
+        ctx.fillStyle = '#f1c40f';
+        ctx.arc(g.x, g.y, 8, 0, Math.PI*2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(241,196,15,0.6)';
+        ctx.arc(g.x, g.y, 14, 0, Math.PI*2);
+        ctx.stroke();
+      }
+    });
+
+    if(flashTime>0){
+      ctx.save();
+      ctx.globalAlpha = Math.min(0.9, flashTime/220);
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(255,150,80,0.18)';
+      ctx.arc(flashX, flashY, flashR*1.8,0,Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 독 웅덩이
+    poisonPools.forEach(pool => {
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(34,197,94,0.25)';
+      ctx.arc(pool.x, pool.y, pool.r, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = '#22c55e';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+
+    // 화염구슬
+    flameOrbs.forEach(orb => {
+      const x = player.x + Math.cos(orb.angle) * orb.distance;
+      const y = player.y + Math.sin(orb.angle) * orb.distance;
+      ctx.beginPath();
+      ctx.fillStyle = '#ff6b35';
+      ctx.arc(x, y, orb.r, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = '#ff4500';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+
+    // 좀비
+    zombies.forEach(z => {
+      if(!z) return;
+      const t = performance.now()*0.002 + z.colorPhase*10;
+      const hue = 120 - Math.sin(t)*40;
+      
+      // 슬로우된 적은 파란색으로, 폭탄 좀비는 빨간색으로
+      const isSlowed = slowedEnemies.find(se => se.enemy === z);
+      let color = `hsl(${hue} 60% 45%)`;
+      if(z.isBomb) color = '#ff4444';
+      else if(isSlowed) color = '#3b82f6';
+      
+      ctx.beginPath();
+      ctx.fillStyle = color;
+      ctx.arc(z.x, z.y, z.r, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.beginPath(); ctx.arc(z.x - z.r/3, z.y - z.r/5, Math.max(1.6, z.r*0.18), 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(z.x + z.r/4, z.y - z.r/5, Math.max(1.6, z.r*0.18), 0, Math.PI*2); ctx.fill();
+
+      // 폭탄 좀비 표시
+      if(z.isBomb){
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 8px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('💣', z.x, z.y + 2);
+      }
+
+      // 화상 바
+      if(z.burnTime > 0 || z.powerBurnTime > 0){
+        ctx.fillStyle = '#ff4500';
+        const ratio = Math.min(1, ((z.burnTime>0?z.burnTime:0) + (z.powerBurnTime>0?z.powerBurnTime:0)) / 10000);
+        ctx.fillRect(z.x - z.r, z.y - z.r - 8, (z.r * 2) * ratio, 3);
+      }
+    });
+
+    // 보스
+    bosses.forEach(b => {
+      if(!b) return;
+      ctx.beginPath(); ctx.fillStyle = b.isMutant ? '#7c2d12' : '#b22222'; ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#111';
+      ctx.beginPath(); ctx.arc(b.x - b.r/3, b.y - b.r/4, b.r*0.18, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(b.x + b.r/4, b.y - b.r/4, b.r*0.18, 0, Math.PI*2); ctx.fill();
+      if(b.isWarning){
+        ctx.beginPath(); ctx.strokeStyle = 'rgba(255,40,40,0.7)'; ctx.lineWidth = 4; ctx.arc(b.x, b.y, 140, 0, Math.PI*2); ctx.stroke();
+      }
+    });
+
+    // 카드
+    cards.forEach(c => {
+      if(!c) return;
+      ctx.beginPath(); ctx.fillStyle = c.color; ctx.arc(c.x, c.y, c.r, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center'; ctx.fillText(c.picks===2?'Ⅱ':'?', c.x, c.y + 4);
+    });
+
+    // 회복구슬
+    healingOrbs.forEach(h => {
+      if(!h) return;
+      ctx.beginPath(); ctx.fillStyle = h.color; ctx.arc(h.x, h.y, h.r, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+    });
+
+    // 플레이어(무적 잔상)
+    const ang = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+    if(safeguardActive){
+      ctx.save();
+      for(let s=0;s<4;s++){
+        ctx.globalAlpha = 0.12 * (4-s);
+        ctx.translate(player.x - s*4, player.y - s*2);
+        ctx.rotate(ang);
+        ctx.fillStyle = '#94a3b8';
+        ctx.beginPath(); ctx.rect(-12,-14,24,28); ctx.fill();
+        ctx.beginPath(); ctx.arc(16,0,10,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+        ctx.save();
+      }
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.translate(player.x, player.y); ctx.rotate(ang); ctx.fillStyle = '#e6eef8';
+    ctx.beginPath(); ctx.rect(-12,-14,24,28); ctx.fill();
+    ctx.beginPath(); ctx.arc(16,0,10,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#111827'; ctx.fillRect(-6,-4,30,8);
+    ctx.restore();
+
+    // 중력장
+    if(buffs.gravityField){
+      ctx.save();
+      ctx.globalAlpha = 0.1;
+      ctx.beginPath();
+      ctx.strokeStyle = '#60a5fa';
+      ctx.lineWidth = 3;
+      ctx.arc(player.x, player.y, 120, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 고양이 펫
+    if(buffs.catPet){
+      const petX = player.x + 30;
+      const petY = player.y - 20;
+      ctx.beginPath();
+      ctx.fillStyle = '#f59e0b';
+      ctx.arc(petX, petY, 6, 0, Math.PI*2);
+      ctx.fill();
+      // 고양이 귀
+      ctx.beginPath();
+      ctx.fillStyle = '#f59e0b';
+      ctx.moveTo(petX-4, petY-6);
+      ctx.lineTo(petX-2, petY-10);
+      ctx.lineTo(petX, petY-6);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(petX, petY-6);
+      ctx.lineTo(petX+2, petY-10);
+      ctx.lineTo(petX+4, petY-6);
+      ctx.fill();
+    }
+
+    // 조준선
+    ctx.beginPath(); ctx.strokeStyle = 'rgba(230,238,248,.9)'; ctx.lineWidth = 1.2; ctx.arc(mouse.x, mouse.y, 10, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mouse.x-16, mouse.y); ctx.lineTo(mouse.x+16, mouse.y); ctx.moveTo(mouse.x, mouse.y-16); ctx.lineTo(mouse.x, mouse.y+16); ctx.stroke();
+
+    // 피 웅덩이
+    bloodPools.forEach(bp => {
+      const age = performance.now() - bp.born;
+      const alpha = Math.max(0, 1 - age/bp.life);
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.6; // 반투명하게
+      ctx.fillStyle = '#22c55e'; // 초록색
+      ctx.beginPath();
+      ctx.arc(bp.x, bp.y, bp.size * 0.8, 0, Math.PI*2); // 좀비 크기의 80%
+      ctx.fill();
+      ctx.restore();
+    });
+
+    // 떠있는 텍스트
+    floatingTexts.forEach(ft => {
+      const age = performance.now() - ft.born;
+      const alpha = Math.max(0, 1 - age/ft.life);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = ft.color;
+      ctx.font = 'bold 12px system-ui';
+      ctx.fillText(ft.text, ft.x, ft.y - age*0.04);
+      ctx.restore();
+    });
+
+    ctx.restore();
+
+    // 하단 점수 / 상단 보스바
+    ctx.font = '14px system-ui'; ctx.fillStyle = 'rgba(230,238,248,.9)'; ctx.fillText('Score: '+Math.floor(score), 12, H-12);
+    if(bosses.length>0){
+      const b = bosses[0];
+      const barW = 360; const pct = Math.max(0, b.hp / b.maxHp);
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W/2 - barW/2 - 2, 18-2, barW+4, 24+4);
+      ctx.fillStyle = b.isMutant ? '#7c2d12' : '#b22222'; ctx.fillRect(W/2 - barW/2, 18, barW * pct, 24);
+      ctx.strokeStyle = '#e6eef8'; ctx.strokeRect(W/2 - barW/2, 18, barW, 24);
+      ctx.fillStyle = '#e6eef8'; ctx.fillText(b.isMutant ? 'MUTANT BOSS' : 'BOSS', W/2 - 48, 36);
+    }
+  }
+
+  function loop(ts){
+    try{
+      const dt = Math.min(0.033, (ts - lastTime)/1000 || 0);
+      lastTime = ts;
+      update(dt);
+      draw();
+    }catch(e){ console.error('Game loop error', e); }
+    requestAnimationFrame(loop);
+  }
+
+  function showOverlay(title, sub){
+    overlay.style.display='block';
+    document.getElementById('overlay-title').textContent=title;
+    document.getElementById('overlay-sub').textContent=sub;
+    
+    // 최고점수 업데이트
+    updateHighScores(score);
+    
+    // 무기별 데미지 통계 표시
+    const totalDamage = weaponDamage.basic + weaponDamage.power + weaponDamage.pierce;
+    if(totalDamage > 0){
+      const damageText = `
+        <div style="margin-top:12px;font-size:12px;color:#cbd5e1;">
+          <div>무기별 데미지:</div>
+          <div>기본총: ${weaponDamage.basic.toLocaleString()} (${Math.round(weaponDamage.basic/totalDamage*100)}%)</div>
+          <div>강력총: ${weaponDamage.power.toLocaleString()} (${Math.round(weaponDamage.power/totalDamage*100)}%)</div>
+          <div>관통대포: ${weaponDamage.pierce.toLocaleString()} (${Math.round(weaponDamage.pierce/totalDamage*100)}%)</div>
+        </div>
+      `;
+      document.getElementById('overlay-sub').innerHTML = sub + damageText;
+    }
+  }
+
+  window.addEventListener('keydown', e => {
+    keys[e.key.toLowerCase()] = true;
+    const key = e.key.toLowerCase();
+    if(key === 'q'){ currentWeapon = (currentWeapon - 1 + weapons.length) % weapons.length; updateWeaponStats(); }
+    else if(key === 'e'){ currentWeapon = (currentWeapon + 1) % weapons.length; updateWeaponStats(); }
+    else if(key === 'x'){ currentWeapon = 2; updateWeaponStats(); }
+    else if(key === 'r'){
+      const ok = throwGrenade(mouse.x, mouse.y);
+      if(ok) maybeQueueExtraGrenade(mouse.x, mouse.y);
+    }
+    if(e.key === 'p'){ running = !running; pauseBtn.textContent = running? '일시정지':'재개'; }
+  });
+  window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+  canvas.addEventListener('mousemove', e => { const rect = canvas.getBoundingClientRect(); mouse.x = (e.clientX-rect.left)*(canvas.width/rect.width); mouse.y = (e.clientY-rect.top)*(canvas.height/rect.height); });
+  canvas.addEventListener('mousedown', e => { mouse.down = true; });
+  window.addEventListener('mouseup', e => { mouse.down = false; });
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); mouse.down = true; const t = e.touches[0]; const rect = canvas.getBoundingClientRect(); mouse.x = (t.clientX-rect.left)*(canvas.width/rect.width); mouse.y = (t.clientY-rect.top)*(canvas.height/rect.height); });
+  canvas.addEventListener('touchend', e => { e.preventDefault(); mouse.down = false; });
+  canvas.addEventListener('touchmove', e => { const rect = canvas.getBoundingClientRect(); const t = e.touches[0]; mouse.x = (t.clientX-rect.left)*(canvas.width/rect.width); mouse.y = (t.clientY-rect.top)*(canvas.height/rect.height); });
+
+  pauseBtn.addEventListener('click', ()=>{ running = !running; pauseBtn.textContent = running? '일시정지':'재개'; });
+  restartBtn.addEventListener('click', ()=>{ reset(); });
+  overlayBtn.addEventListener('click', ()=>{ reset(); });
+  overlay.addEventListener('click', ()=>{ reset(); });
+  startBtn.addEventListener('click', ()=>{ 
+    startOverlay.style.display = 'none'; 
+    running = true;
+  });
+
+  // 모바일 조이스틱 이벤트
+  function getJoystickPos(e) {
+    const rect = joystick.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const touch = e.touches ? e.touches[0] : e;
+    return {
+      x: touch.clientX - centerX,
+      y: touch.clientY - centerY
+    };
+  }
+
+  joystick.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    joystickActive = true;
+    const pos = getJoystickPos(e);
+    joystickCenter = {x: pos.x, y: pos.y};
+  });
+
+  joystick.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if(!joystickActive) return;
+    const pos = getJoystickPos(e);
+    const dx = pos.x - joystickCenter.x;
+    const dy = pos.y - joystickCenter.y;
+    const distance = Math.hypot(dx, dy);
+    const maxDistance = 25;
+    
+    if(distance <= maxDistance) {
+      joystickOffset.x = dx / maxDistance;
+      joystickOffset.y = dy / maxDistance;
+      joystickKnob.style.transform = `translate(${dx - 15}px, ${dy - 15}px)`;
+    } else {
+      const angle = Math.atan2(dy, dx);
+      joystickOffset.x = Math.cos(angle);
+      joystickOffset.y = Math.sin(angle);
+      joystickKnob.style.transform = `translate(${Math.cos(angle) * maxDistance - 15}px, ${Math.sin(angle) * maxDistance - 15}px)`;
+    }
+  });
+
+  joystick.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    joystickActive = false;
+    joystickOffset.x = 0;
+    joystickOffset.y = 0;
+    joystickKnob.style.transform = 'translate(-50%, -50%)';
+  });
+
+  // 모바일 발사 버튼
+  shootButton.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    mouse.down = true;
+  });
+
+  shootButton.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    mouse.down = false;
+  });
+
+  // 게임 시작 시간 초기화
+  gameStartTime = performance.now();
+  
+  // 최고점수 표시 초기화
+  updateHighScoresDisplay();
+  
+  for(let i=0;i<4;i++) spawnZombie();
+  applyWeaponBuffs();
+  updateWeaponStats();
+  updateHealthDisplay();
+  requestAnimationFrame(loop);
+  console.log('Zombie Shooter ready — WASD to move, mouse to aim, click or Space to shoot. Q/E/X to switch weapons, R to throw grenade.');
+})();
+</script>
+</body>
+</html>
