@@ -34,15 +34,43 @@
     .mobile-controls{position:fixed;bottom:20px;left:20px;display:none;z-index:20}
     .joystick{width:80px;height:80px;border:3px solid rgba(255,255,255,0.3);border-radius:50%;background:rgba(0,0,0,0.5);position:relative}
     .joystick-knob{width:30px;height:30px;background:#4ade80;border-radius:50%;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);transition:all 0.1s}
-    .shoot-button{position:fixed;bottom:20px;right:20px;width:80px;height:80px;border:3px solid rgba(255,255,255,0.3);border-radius:50%;background:rgba(239,68,68,0.8);display:none;z-index:20;cursor:pointer}
-    .shoot-button:active{background:rgba(239,68,68,1);transform:scale(0.95)}
+    
+    /* 이동식 공격 조이스틱 */
+    .attack-joystick{width:100px;height:100px;border:3px solid rgba(239,68,68,0.5);border-radius:50%;background:rgba(239,68,68,0.2);position:fixed;display:none;z-index:20;cursor:pointer}
+    .attack-joystick-knob{width:35px;height:35px;background:#ef4444;border-radius:50%;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);transition:all 0.1s;box-shadow:0 0 10px rgba(239,68,68,0.5)}
+    
+    /* 모바일 버튼들 */
+    .mobile-button{width:60px;height:60px;border:3px solid rgba(255,255,255,0.3);border-radius:50%;background:rgba(0,0,0,0.7);display:none;z-index:20;cursor:pointer;position:fixed;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:bold;color:#fff;user-select:none;-webkit-user-select:none}
+    .mobile-button:active{transform:scale(0.95);background:rgba(255,255,255,0.2)}
+    
+    .grenade-btn{background:rgba(245,158,11,0.8)}
+    .weapon-btn{background:rgba(139,92,246,0.8)}
+    
+    /* 모바일 UI 하단 배치 */
+    .mobile-ui{position:fixed;bottom:10px;left:10px;right:10px;display:none;z-index:15;background:rgba(0,0,0,0.8);border-radius:10px;padding:8px;border:1px solid rgba(255,255,255,0.1)}
+    .mobile-ui-content{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#e6eef8}
+    .mobile-score{font-weight:700;color:#4ade80}
+    .mobile-health{display:flex;align-items:center;gap:8px}
+    .mobile-health-bar{width:60px;height:8px;background:rgba(0,0,0,0.5);border-radius:4px;overflow:hidden}
+    .mobile-health-fill{height:100%;background:linear-gradient(90deg,#ef4444,#f97316);transition:width 0.3s ease;border-radius:4px}
+    
+    /* 세로 모드 권장 메시지 */
+    .orientation-notice{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.9);color:#fff;padding:20px;border-radius:10px;text-align:center;z-index:100;display:none;border:2px solid #4ade80}
     
     @media (max-width: 768px) {
       .mobile-controls{display:block}
-      .shoot-button{display:block}
+      .attack-joystick{display:block}
+      .mobile-button{display:flex}
+      .mobile-ui{display:block}
       #controls-left{display:none}
-      #ui{transform:scale(0.8)}
+      #ui{display:none}
+      #controls{display:none}
+      #buffs{display:none}
       canvas{max-width:100vw;max-height:100vh;width:auto;height:auto}
+    }
+    
+    @media (orientation: landscape) and (max-width: 768px) {
+      .orientation-notice{display:block}
     }
   </style>
 </head>
@@ -83,7 +111,35 @@
       <div class="joystick-knob" id="joystickKnob"></div>
     </div>
   </div>
-  <div class="shoot-button" id="shootButton">🔥</div>
+  
+  <!-- 이동식 공격 조이스틱 -->
+  <div class="attack-joystick" id="attackJoystick">
+    <div class="attack-joystick-knob" id="attackJoystickKnob"></div>
+  </div>
+  
+  <!-- 모바일 버튼들 -->
+  <div class="mobile-button grenade-btn" id="mobileGrenadeBtn">💣</div>
+  <div class="mobile-button weapon-btn" id="mobileWeaponBtn">⚔️</div>
+  
+  <!-- 모바일 UI -->
+  <div class="mobile-ui">
+    <div class="mobile-ui-content">
+      <div class="mobile-score">Score: <span id="mobileScore">0</span></div>
+      <div class="mobile-health">
+        <span>HP:</span>
+        <div class="mobile-health-bar">
+          <div class="mobile-health-fill" id="mobileHealthFill"></div>
+        </div>
+        <span id="mobileHealthText">100/100</span>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 세로 모드 권장 메시지 -->
+  <div class="orientation-notice">
+    <h3>📱 세로 모드 권장</h3>
+    <p>더 나은 게임 경험을 위해<br>세로 모드로 회전해주세요!</p>
+  </div>
 
   <div class="center-msg" id="overlay" style="display:none">
     <h1 id="overlay-title">Game Over</h1>
@@ -136,7 +192,13 @@
   const startBtn = document.getElementById('startBtn');
   const joystick = document.getElementById('joystick');
   const joystickKnob = document.getElementById('joystickKnob');
-  const shootButton = document.getElementById('shootButton');
+  const attackJoystick = document.getElementById('attackJoystick');
+  const attackJoystickKnob = document.getElementById('attackJoystickKnob');
+  const mobileGrenadeBtn = document.getElementById('mobileGrenadeBtn');
+  const mobileWeaponBtn = document.getElementById('mobileWeaponBtn');
+  const mobileScore = document.getElementById('mobileScore');
+  const mobileHealthFill = document.getElementById('mobileHealthFill');
+  const mobileHealthText = document.getElementById('mobileHealthText');
   const weaponNameEl = document.getElementById('weapon-name');
   const grenadeStatusEl = document.getElementById('grenade-status');
   const cardOverlay = document.getElementById('cardOverlay');
@@ -155,6 +217,11 @@
   let joystickActive = false;
   let joystickCenter = {x: 0, y: 0};
   let joystickOffset = {x: 0, y: 0};
+  
+  let attackJoystickActive = false;
+  let attackJoystickCenter = {x: 0, y: 0};
+  let attackJoystickOffset = {x: 0, y: 0};
+  let attackJoystickPosition = {x: 0, y: 0};
 
   const BASE_WEAPONS = [
     { id: 'basic', name: '기본 총', damage: 20, fireRate: 60, bulletSpeed: 560, bulletR:8, color:'#fff' },
@@ -850,6 +917,10 @@
     const percentage = (player.health / player.maxHealth) * 100;
     healthFill.style.width = percentage + '%';
     healthEl.textContent = Math.floor(player.health) + ' / ' + player.maxHealth;
+    
+    // 모바일 UI 업데이트
+    mobileHealthFill.style.width = percentage + '%';
+    mobileHealthText.textContent = Math.floor(player.health) + '/' + player.maxHealth;
   }
 
   function autoPierceShoot(){
@@ -1115,8 +1186,16 @@
     player.y = Math.max(20, Math.min(H-20, player.y));
 
     // 발사
-    if((mouse.down||keys[' ']) && now - player.lastShot > (player.fireRate||1000)){
-      const ang = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+    const isShooting = mouse.down || keys[' '] || attackJoystickActive;
+    if(isShooting && now - player.lastShot > (player.fireRate||1000)){
+      let ang;
+      if(attackJoystickActive && attackJoystickOffset.x !== 0 && attackJoystickOffset.y !== 0){
+        // 모바일 공격 조이스틱으로 조준
+        ang = Math.atan2(attackJoystickOffset.y, attackJoystickOffset.x);
+      } else {
+        // 마우스 조준
+        ang = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+      }
       const w = weapons[currentWeapon] || weapons[0];
 
       // 기본총: 특수탄 확률 처리
@@ -1633,6 +1712,7 @@
 
     // UI
     scoreEl.textContent = Math.floor(score);
+    mobileScore.textContent = Math.floor(score);
     updateHealthDisplay();
     zcountEl.textContent = zombies.length + bosses.length;
 
@@ -2084,22 +2164,101 @@
     joystickKnob.style.transform = 'translate(-50%, -50%)';
   });
 
-  // 모바일 발사 버튼
-  shootButton.addEventListener('touchstart', (e) => {
+  // 이동식 공격 조이스틱 이벤트
+  function getAttackJoystickPos(e) {
+    const rect = attackJoystick.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const touch = e.touches ? e.touches[0] : e;
+    return {
+      x: touch.clientX - centerX,
+      y: touch.clientY - centerY
+    };
+  }
+
+  attackJoystick.addEventListener('touchstart', (e) => {
     e.preventDefault();
-    mouse.down = true;
+    attackJoystickActive = true;
+    const pos = getAttackJoystickPos(e);
+    attackJoystickCenter = {x: pos.x, y: pos.y};
   });
 
-  shootButton.addEventListener('touchend', (e) => {
+  attackJoystick.addEventListener('touchmove', (e) => {
     e.preventDefault();
-    mouse.down = false;
+    if(!attackJoystickActive) return;
+    const pos = getAttackJoystickPos(e);
+    const dx = pos.x - attackJoystickCenter.x;
+    const dy = pos.y - attackJoystickCenter.y;
+    const distance = Math.hypot(dx, dy);
+    const maxDistance = 30;
+    
+    if(distance <= maxDistance) {
+      attackJoystickOffset.x = dx / maxDistance;
+      attackJoystickOffset.y = dy / maxDistance;
+      attackJoystickKnob.style.transform = `translate(${dx - 17.5}px, ${dy - 17.5}px)`;
+    } else {
+      const angle = Math.atan2(dy, dx);
+      attackJoystickOffset.x = Math.cos(angle);
+      attackJoystickOffset.y = Math.sin(angle);
+      attackJoystickKnob.style.transform = `translate(${Math.cos(angle) * maxDistance - 17.5}px, ${Math.sin(angle) * maxDistance - 17.5}px)`;
+    }
   });
 
+  attackJoystick.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    attackJoystickActive = false;
+    attackJoystickOffset.x = 0;
+    attackJoystickOffset.y = 0;
+    attackJoystickKnob.style.transform = 'translate(-50%, -50%)';
+  });
+
+  // 모바일 버튼 이벤트
+  mobileGrenadeBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const ok = throwGrenade(player.x + 100, player.y - 100);
+    if(ok) maybeQueueExtraGrenade(player.x + 100, player.y - 100);
+  });
+
+  mobileWeaponBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    currentWeapon = (currentWeapon + 1) % weapons.length;
+    updateWeaponStats();
+  });
+
+  // 모바일 컨트롤 초기화
+  function initMobileControls(){
+    // 공격 조이스틱 초기 위치 설정 (화면 우하단)
+    const rect = canvas.getBoundingClientRect();
+    const right = window.innerWidth - 120;
+    const bottom = window.innerHeight - 120;
+    
+    attackJoystickPosition.x = right;
+    attackJoystickPosition.y = bottom;
+    attackJoystick.style.left = right + 'px';
+    attackJoystick.style.top = bottom + 'px';
+    
+    // 버튼 위치 설정
+    mobileGrenadeBtn.style.left = (right - 80) + 'px';
+    mobileGrenadeBtn.style.top = bottom + 'px';
+    
+    mobileWeaponBtn.style.left = (right - 80) + 'px';
+    mobileWeaponBtn.style.top = (bottom - 80) + 'px';
+  }
+  
   // 게임 시작 시간 초기화
   gameStartTime = performance.now();
   
   // 최고점수 표시 초기화
   updateHighScoresDisplay();
+  
+  // 모바일 컨트롤 초기화
+  initMobileControls();
+  
+  // 화면 크기 변경 시 컨트롤 위치 재조정
+  window.addEventListener('resize', initMobileControls);
+  window.addEventListener('orientationchange', () => {
+    setTimeout(initMobileControls, 100);
+  });
   
   for(let i=0;i<4;i++) spawnZombie();
   applyWeaponBuffs();
