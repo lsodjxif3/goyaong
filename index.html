@@ -263,6 +263,13 @@
   let slowedEnemies = []; // 슬로우된 적들
   let cursedEnemies = []; // 저주받은 적들
   
+  // 신규 버프 변수
+  let valkyrieBlessingActive = false; // 발키리의 축복 활성화 상태
+  let powerShotCount = 0; // 강력총 연속 발사 카운트
+  let dogPetTimer = 0; // 강아지 펫 타이머
+  let flameExplosions = []; // 화염 폭발
+  let flamePools = []; // 화염 장판
+  
   // 게임 시간 관련 변수
   let gameStartTime = 0;
   let isLateGame = false; // 25분 후 체크
@@ -322,6 +329,15 @@
     basicBurst: false,            // 8: 기본총 버스트
     powerSpeedCrit: false,        // 9: 강력총 속도+치명타
     grenadeChain: false,          // 10: 수류탄 연쇄폭발
+    
+    // 신규 노랑 버프 11~17
+    valkyrieBlessing: false,      // 11: 발키리의 축복
+    powerSmallBullet: false,      // 12: 강력총 작은 추가 탄환
+    superCritical: false,         // 13: 강력 치명타
+    pierceEnhanced: false,        // 14: 관통대포 강화 탄환
+    dogPet: false,                // 15: 강아지 펫
+    dotBoost: false,              // 16: DOT 추가 데미지
+    basicCritical: false,         // 17: 기본총 치명타
 
     // 프리즘 버프 1~3
     basicAwakening: false,        // 1: 기본총 각성
@@ -373,6 +389,15 @@
     basicBurst: "기본총 버스트 (30발마다 10발)",
     powerSpeedCrit: "강력총 속도+치명타",
     grenadeChain: "수류탄 연쇄폭발",
+    
+    // 신규 노랑 버프
+    valkyrieBlessing: "발키리의 축복 (강력총 10연속시 발동)",
+    powerSmallBullet: "강력총 작은 추가 탄환",
+    superCritical: "강력 치명타 (2.5배 데미지)",
+    pierceEnhanced: "관통대포 강화 탄환 (화염 폭발)",
+    dogPet: "강아지 펫 (랜덤 탄환 발사)",
+    dotBoost: "DOT 추가 데미지 (+100)",
+    basicCritical: "기본총 치명타 (2.5% 확률)",
 
     // 프리즘 버프
     basicAwakening: "기본총 각성 (데미지+25, 속도+100, 발사간격-15, 35발마다 랜덤 탄환)",
@@ -424,6 +449,15 @@
     { id: 'basicBurst', title: '기본총 버스트', desc: '30발 발사마다 10발 추가 발사.', color: '#fbbf24' },
     { id: 'powerSpeedCrit', title: '강력총 강화', desc: '속도 +100, 치명타 추가.', color: '#fbbf24' },
     { id: 'grenadeChain', title: '연쇄 폭발', desc: '수류탄 폭발 1초 후 3번 연쇄폭발.', color: '#fbbf24' },
+    
+    // 신규 노랑 버프 카드
+    { id: 'valkyrieBlessing', title: '발키리의 축복', desc: '강력총 10연속 사용시 발동. firerate-100, 이속+15%.', color: '#fbbf24' },
+    { id: 'powerSmallBullet', title: '강력총 작은 추가 탄환', desc: '50% 작은 추가 탄환 발사, 50% 데미지.', color: '#fbbf24' },
+    { id: 'superCritical', title: '강력 치명타', desc: '모든 치명타에 50% 확률로 2.5배 데미지.', color: '#fbbf24' },
+    { id: 'pierceEnhanced', title: '관통대포 강화 탄환', desc: '3% 확률로 화염 폭발하는 강화 탄환.', color: '#fbbf24' },
+    { id: 'dogPet', title: '강아지 펫', desc: '7초마다 랜덤 탄환 발사 (고양이 펫시 4초).', color: '#fbbf24' },
+    { id: 'dotBoost', title: 'DOT 추가 데미지', desc: '모든 DOT 효과에 +100 데미지.', color: '#fbbf24' },
+    { id: 'basicCritical', title: '기본총 치명타', desc: '2.5% 확률로 1.7배 데미지 치명타.', color: '#fbbf24' },
 
     // 프리즘 버프 카드
     { id: 'basicAwakening', title: '기본총 각성', desc: '데미지+25, 속도+100, 발사간격-15, 35발마다 랜덤 탄환.', color: '#8b5cf6' },
@@ -580,6 +614,11 @@
     if(buffs.powerFaster150){
       weapons[1].fireRate = Math.max(100, weapons[1].fireRate - 150);
     }
+    
+    // 발키리의 축복: 강력총 fireRate -100
+    if(valkyrieBlessingActive && buffs.valkyrieBlessing){
+      weapons[1].fireRate = Math.max(100, weapons[1].fireRate - 100);
+    }
   }
 
   function updateWeaponStats(){
@@ -604,6 +643,7 @@
     
     // 특별 버프 변수 초기화
     catPetTimer = 0; basicShotCount = 0; chainExplosions = []; slowedEnemies = []; cursedEnemies = [];
+    valkyrieBlessingActive = false; powerShotCount = 0; dogPetTimer = 0; flameExplosions = []; flamePools = [];
     
     // 게임 시간 초기화
     gameStartTime = performance.now();
@@ -1005,13 +1045,17 @@
       zombies.forEach(z => {
         if(Math.hypot(z.x - pool.x, z.y - pool.y) < pool.r + z.r){
           // 체력의 1%/s -> z.hp 단위 적용
-          z.hp -= (0.01 * z.hp) * dt;
+          let poisonDamage = (0.01 * z.hp) * dt;
+          if(buffs.dotBoost) poisonDamage += 10 * dt; // DOT 추가 데미지 +100 (초당 10)
+          z.hp -= poisonDamage;
           z.poisonedTime = Math.min(2000, (z.poisonedTime || 0) + 1000 * dt);
         }
       });
       bosses.forEach(b => {
         if(Math.hypot(b.x - pool.x, b.y - pool.y) < pool.r + b.r){
-          b.hp -= (0.01 * b.hp) * dt;
+          let poisonDamage = (0.01 * b.hp) * dt;
+          if(buffs.dotBoost) poisonDamage += 10 * dt; // DOT 추가 데미지 +100 (초당 10)
+          b.hp -= poisonDamage;
         }
       });
     }
@@ -1132,6 +1176,61 @@
       spawnGrenade({ x: sx, y: sy, vx, vy, born: performance.now(), fuse: Math.ceil(travelTime*1000 + 200), explodeRadius: range, damage: baseDamage, targetX, targetY, fromBuff: true, isCatPet: true });
     }
   }
+  
+  function updateDogPet(dt){
+    if(!buffs.dogPet) return;
+    dogPetTimer += dt * 1000;
+    
+    // 고양이 펫이 있으면 4초마다, 없으면 7초마다
+    const interval = buffs.catPet ? 4000 : 7000;
+    
+    if(dogPetTimer >= interval){
+      dogPetTimer = 0;
+      
+      // 좀비가 가장 많이 모인 구역 찾기
+      let maxZombies = 0;
+      let targetX = player.x;
+      let targetY = player.y;
+      
+      for(let i = 0; i < 8; i++){
+        const angle = (i * Math.PI * 2) / 8;
+        const checkX = player.x + Math.cos(angle) * 150;
+        const checkY = player.y + Math.sin(angle) * 150;
+        
+        let zombieCount = 0;
+        zombies.forEach(z => {
+          if(Math.hypot(z.x - checkX, z.y - checkY) < 80){
+            zombieCount++;
+          }
+        });
+        
+        if(zombieCount > maxZombies){
+          maxZombies = zombieCount;
+          targetX = checkX;
+          targetY = checkY;
+        }
+      }
+      
+      // 랜덤 탄환 선택 (기본총 5개, 관통대포 1개, 강력총 1개)
+      const randomWeapon = Math.random();
+      const dogX = player.x - 30, dogY = player.y - 20; // 강아지 위치
+      const ang = Math.atan2(targetY - dogY, targetX - dogX);
+      
+      if(randomWeapon < 5/7){ // 기본총 탄환 5개
+        for(let i = 0; i < 5; i++){
+          const spreadAngle = ang + (Math.random() - 0.5) * 0.4;
+          spawnBullet(dogX, dogY, Math.cos(spreadAngle) * weapons[0].bulletSpeed, Math.sin(spreadAngle) * weapons[0].bulletSpeed,
+            weapons[0].bulletR, 2000, weapons[0].color, weapons[0].damage, false, { weaponId: 'basic', isDogPet: true });
+        }
+      } else if(randomWeapon < 6/7){ // 관통대포 탄환 1개
+        spawnBullet(dogX, dogY, Math.cos(ang) * weapons[2].bulletSpeed, Math.sin(ang) * weapons[2].bulletSpeed,
+          weapons[2].bulletR, 2000, weapons[2].color, weapons[2].damage, true, { weaponId: 'pierce', isDogPet: true });
+      } else { // 강력총 탄환 1개
+        spawnBullet(dogX, dogY, Math.cos(ang) * weapons[1].bulletSpeed, Math.sin(ang) * weapons[1].bulletSpeed,
+          weapons[1].bulletR, 2000, weapons[1].color, weapons[1].damage, false, { weaponId: 'power', isDogPet: true });
+      }
+    }
+  }
 
   function updateChainExplosions(dt){
     for(let i = chainExplosions.length - 1; i >= 0; i--){
@@ -1146,6 +1245,82 @@
         spawnGrenade({ x: explosion.x, y: explosion.y, vx: 0, vy: 0, born: performance.now(), fuse: 100, explodeRadius: range, damage: baseDamage, fromBuff: true, isChainExplosion: true });
         chainExplosions.splice(i, 1);
       }
+    }
+  }
+  
+  function updateFlameExplosions(dt){
+    for(let i = flameExplosions.length - 1; i >= 0; i--){
+      const explosion = flameExplosions[i];
+      explosion.timer -= dt * 1000;
+      
+      if(explosion.timer <= 0){
+        // 화염 폭발 처리 (범위 내 적들에게 1000 데미지)
+        const explosionRadius = 120;
+        
+        // 좀비 데미지
+        for(let j = zombies.length-1; j >= 0; --j){
+          const z = zombies[j];
+          if(!z) continue;
+          const d = Math.hypot(z.x - explosion.x, z.y - explosion.y);
+          if(d <= explosionRadius + z.r){
+            z.hp -= 1000;
+            if(z.hp <= 0){
+              let add = Math.ceil(10 + z.r + z.speed/4);
+              if(buffs.score15On1pct && Math.random() < 0.01) add = Math.ceil(add * 1.5);
+              score += add;
+              zombies.splice(j, 1);
+            }
+          }
+        }
+        
+        // 보스 데미지
+        for(let j = bosses.length-1; j >= 0; --j){
+          const boss = bosses[j];
+          if(!boss) continue;
+          const d = Math.hypot(boss.x - explosion.x, boss.y - explosion.y);
+          if(d <= explosionRadius + boss.r){
+            boss.hp -= 1000;
+            if(boss.hp <= 0){
+              score += 500;
+              const wasMutant = boss.isMutant;
+              spawnCard(boss.x, boss.y, wasMutant ? 2 : 1);
+              bosses.splice(j, 1);
+              cameraShake = 18;
+            }
+          }
+        }
+        
+        // 화염 장판 생성 (10초간 지속)
+        flamePools.push({ x: explosion.x, y: explosion.y, r: explosionRadius, life: 10000, born: performance.now() });
+        
+        flameExplosions.splice(i, 1);
+      }
+    }
+  }
+  
+  function updateFlamePools(dt){
+    for(let i = flamePools.length - 1; i >= 0; i--){
+      const pool = flamePools[i];
+      if(performance.now() - pool.born > pool.life){
+        flamePools.splice(i, 1);
+        continue;
+      }
+      
+      // 화염 장판 데미지 (초당 적 체력 1%)
+      zombies.forEach(z => {
+        if(Math.hypot(z.x - pool.x, z.y - pool.y) < pool.r + z.r){
+          let flameDamage = (0.01 * z.hp) * dt;
+          if(buffs.dotBoost) flameDamage += 10 * dt; // DOT 추가 데미지 +100 (초당 10)
+          z.hp -= flameDamage;
+        }
+      });
+      bosses.forEach(b => {
+        if(Math.hypot(b.x - pool.x, b.y - pool.y) < pool.r + b.r){
+          let flameDamage = (0.01 * b.hp) * dt;
+          if(buffs.dotBoost) flameDamage += 10 * dt; // DOT 추가 데미지 +100 (초당 10)
+          b.hp -= flameDamage;
+        }
+      });
     }
   }
 
@@ -1179,7 +1354,8 @@
     if(mvx||mvy){ const L=Math.hypot(mvx,mvy); mvx/=L; mvy/=L; }
 
     const safeguardSpeed = (safeguardActive ? 2 : 1);
-    const speedMultiplier = (buffs.speedDodge ? 1.5 : 1) * safeguardSpeed;
+    const valkyrieSpeed = (valkyrieBlessingActive && buffs.valkyrieBlessing ? 1.15 : 1); // 발키리의 축복: 이속 15% 증가
+    const speedMultiplier = (buffs.speedDodge ? 1.5 : 1) * safeguardSpeed * valkyrieSpeed;
     player.x += mvx * player.speed * speedMultiplier * dt;
     player.y += mvy * player.speed * speedMultiplier * dt;
     player.x = Math.max(20, Math.min(W-20, player.x));
@@ -1262,6 +1438,25 @@
         spawnBullet(player.x + Math.cos(ang)*(player.r+8), player.y + Math.sin(ang)*(player.r+8),
           Math.cos(ang)*bulletSpeed, Math.sin(ang)*bulletSpeed,
           w.bulletR, 2000, w.color, w.damage, false, { weaponId: 'power' });
+        
+        // 발키리의 축복: 강력총 연속 발사 카운트
+        if(buffs.valkyrieBlessing){
+          powerShotCount++;
+          if(powerShotCount >= 10 && !valkyrieBlessingActive){
+            valkyrieBlessingActive = true;
+            spawnFloatingText('발키리의 축복!', player.x, player.y-30, '#fbbf24');
+            applyWeaponBuffs();
+            updateWeaponStats();
+          }
+        }
+        
+        // 강력총 작은 추가 탄환 (50% 크기, 50% 데미지)
+        if(buffs.powerSmallBullet){
+          spawnBullet(player.x + Math.cos(ang)*(player.r+8), player.y + Math.sin(ang)*(player.r+8),
+            Math.cos(ang)*bulletSpeed, Math.sin(ang)*bulletSpeed,
+            w.bulletR * 0.5, 2000, w.color, w.damage * 0.5, false, { weaponId: 'power' });
+        }
+        
         if(buffs.powerExtraBullet20 && Math.random()<0.5){ // 50%로 증가
           spawnBullet(player.x + Math.cos(ang)*(player.r+8), player.y + Math.sin(ang)*(player.r+8),
             Math.cos(ang)*bulletSpeed, Math.sin(ang)*bulletSpeed,
@@ -1270,9 +1465,21 @@
       } else {
         // 관통대포
         const bulletR = buffs.pierceSize ? 24 : w.bulletR;
-        spawnBullet(player.x + Math.cos(ang)*(player.r+8), player.y + Math.sin(ang)*(player.r+8),
-          Math.cos(ang)*w.bulletSpeed, Math.sin(ang)*w.bulletSpeed,
-          bulletR, 2000, w.color, w.damage, true, { weaponId: 'pierce' });
+        
+        // 관통대포 강화 탄환 (3% 확률)
+        if(buffs.pierceEnhanced && Math.random() < 0.03){
+          const enhancedDamage = w.damage * 1.3; // 30% 더 큰 데미지
+          const enhancedSpeed = w.bulletSpeed * 0.7; // 30% 더 느림
+          const enhancedSize = bulletR * 1.3; // 30% 더 큰 크기
+          spawnBullet(player.x + Math.cos(ang)*(player.r+8), player.y + Math.sin(ang)*(player.r+8),
+            Math.cos(ang)*enhancedSpeed, Math.sin(ang)*enhancedSpeed,
+            enhancedSize, 2000, '#ff4500', enhancedDamage, false, // 관통하지 않음
+            { weaponId: 'pierce', isEnhanced: true, outline: '#ff0000' });
+        } else {
+          spawnBullet(player.x + Math.cos(ang)*(player.r+8), player.y + Math.sin(ang)*(player.r+8),
+            Math.cos(ang)*w.bulletSpeed, Math.sin(ang)*w.bulletSpeed,
+            bulletR, 2000, w.color, w.damage, true, { weaponId: 'pierce' });
+        }
       }
       player.lastShot = now;
     }
@@ -1305,8 +1512,11 @@
     // 특별 버프 업데이트
     updateGravityField(dt);
     updateCatPet(dt);
+    updateDogPet(dt);
     updateChainExplosions(dt);
     updateSlowedEnemies(dt);
+    updateFlameExplosions(dt);
+    updateFlamePools(dt);
 
     // 총알 이동
     cleanupBullets();
@@ -1354,13 +1564,16 @@
       // 수류탄 화상: DPS = 50 + 5% 체력/초 -> z.hp 단위 환산
       if(z.burnTime > 0){
         z.burnTime -= dt * 1000;
-        const perSec = (50/10) + 0.05 * z.hp; // 5 + 5% of current hp
+        let perSec = (50/10) + 0.05 * z.hp; // 5 + 5% of current hp
+        if(buffs.dotBoost) perSec += 10; // DOT 추가 데미지 +100 (초당 10)
         z.hp -= perSec * dt;
       }
       // 강력총 화상: 초당 80 -> z.hp 단위로 8
       if(z.powerBurnTime > 0){
         z.powerBurnTime -= dt * 1000;
-        z.hp -= 8 * dt;
+        let burnDamage = 8;
+        if(buffs.dotBoost) burnDamage += 10; // DOT 추가 데미지 +100 (초당 10)
+        z.hp -= burnDamage * dt;
       }
       if(z.poisonedTime > 0){
         z.poisonedTime -= dt * 1000;
@@ -1394,6 +1607,14 @@
           // 피해 계산
           let raw = b.damage||0;
           let crit = false;
+          let superCrit = false;
+          
+          // 기본총 치명타 (2.5% 확률, 1.7배)
+          if(b.weaponId === 'basic' && buffs.basicCritical && Math.random() < 0.025){
+            raw *= 1.7;
+            crit = true;
+          }
+          
           if(b.weaponId === 'pierce' && buffs.pierceCrit20 && Math.random() < 0.2){
             raw *= 1.5;
             crit = true;
@@ -1401,6 +1622,12 @@
           if(b.weaponId === 'power' && (buffs.powerSpeedCrit || buffs.powerAwakening) && Math.random() < 0.2){
             raw *= (buffs.powerAwakening ? 1.8 : 1.5); // 각성 시 1.8배, 일반 시 1.5배
             crit = true;
+          }
+          
+          // 강력 치명타 시스템 (치명타 발동 시 50% 확률로 2.5배)
+          if(crit && buffs.superCritical && Math.random() < 0.5){
+            raw *= 2.5;
+            superCrit = true;
           }
           
           // 강력총 각성: 필수 치명타 + 체력 2% 추가 피해
@@ -1438,7 +1665,9 @@
           
           z.hp -= damage;
 
-          if(crit){
+          if(superCrit){
+            spawnFloatingText('슈퍼 크리티컬!!', z.x, z.y-12, '#ff0000');
+          } else if(crit){
             spawnFloatingText('크리티컬!', z.x, z.y-12, '#fbbf24');
           }
 
@@ -1471,6 +1700,18 @@
 
           // 관통 처리
           if(!b.pierce){
+            // 관통대포 강화 탄환: 관통하지 않고 화염 폭발
+            if(b.isEnhanced && b.weaponId === 'pierce'){
+              const additionalDamage = Math.ceil(z.hp * 0.15); // 적 체력 15% 추가 데미지
+              z.hp -= additionalDamage;
+              
+              // 화염 폭발 생성
+              flameExplosions.push({ x: b.x, y: b.y, timer: 100 });
+              
+              // 폭발 이펙트
+              flashTime = 150; flashX = b.x; flashY = b.y; flashR = 120;
+              cameraShake = Math.max(cameraShake, 8);
+            }
             bullets.splice(j,1);
           }else{
             b.hits++;
@@ -1551,16 +1792,30 @@
         const b = bullets[j]; if(!b){ bullets.splice(j,1); continue; }
         const d = Math.hypot(boss.x - b.x, boss.y - b.y);
         if(d < boss.r + b.r){
-          let damage = b.damage||0;
-          let crit = false;
-          if(b.weaponId === 'pierce' && buffs.pierceCrit20 && Math.random() < 0.2){
-            damage *= 1.5;
-            crit = true;
-          }
-          if(b.weaponId === 'power' && (buffs.powerSpeedCrit || buffs.powerAwakening) && Math.random() < 0.2){
-            damage *= (buffs.powerAwakening ? 1.8 : 1.5);
-            crit = true;
-          }
+        let damage = b.damage||0;
+        let crit = false;
+        let superCrit = false;
+        
+        // 기본총 치명타 (보스도 동일)
+        if(b.weaponId === 'basic' && buffs.basicCritical && Math.random() < 0.025){
+          damage *= 1.7;
+          crit = true;
+        }
+        
+        if(b.weaponId === 'pierce' && buffs.pierceCrit20 && Math.random() < 0.2){
+          damage *= 1.5;
+          crit = true;
+        }
+        if(b.weaponId === 'power' && (buffs.powerSpeedCrit || buffs.powerAwakening) && Math.random() < 0.2){
+          damage *= (buffs.powerAwakening ? 1.8 : 1.5);
+          crit = true;
+        }
+        
+        // 강력 치명타 시스템 (보스도 동일)
+        if(crit && buffs.superCritical && Math.random() < 0.5){
+          damage *= 2.5;
+          superCrit = true;
+        }
           
           // 강력총 각성: 필수 치명타 + 체력 2% 추가 피해
           if(b.weaponId === 'power' && buffs.powerAwakening){
@@ -1581,14 +1836,28 @@
           
           boss.hp -= damage;
 
-          if(crit){
-            spawnFloatingText('크리티컬!', boss.x, boss.y-boss.r-6, '#fbbf24');
-          }
+        if(superCrit){
+          spawnFloatingText('슈퍼 크리티컬!!', boss.x, boss.y-boss.r-6, '#ff0000');
+        } else if(crit){
+          spawnFloatingText('크리티컬!', boss.x, boss.y-boss.r-6, '#fbbf24');
+        }
           if(b.weaponId === 'sword'){
             spawnFloatingText('스매시!', boss.x, boss.y-boss.r-6, '#e2e8f0');
           }
 
           if(!b.pierce){
+            // 관통대포 강화 탄환: 보스도 동일하게 처리
+            if(b.isEnhanced && b.weaponId === 'pierce'){
+              const additionalDamage = Math.ceil(boss.hp * 0.15); // 보스 체력 15% 추가 데미지
+              boss.hp -= additionalDamage;
+              
+              // 화염 폭발 생성
+              flameExplosions.push({ x: b.x, y: b.y, timer: 100 });
+              
+              // 폭발 이펙트
+              flashTime = 150; flashX = b.x; flashY = b.y; flashR = 120;
+              cameraShake = Math.max(cameraShake, 8);
+            }
             bullets.splice(j,1);
           }else{
             b.hits++;
@@ -1877,6 +2146,22 @@
       ctx.lineWidth = 2;
       ctx.stroke();
     });
+    
+    // 화염 장판
+    flamePools.forEach(pool => {
+      const age = performance.now() - pool.born;
+      const alpha = Math.max(0, 1 - age/pool.life);
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.3;
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(255,69,0,0.4)';
+      ctx.arc(pool.x, pool.y, pool.r, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = '#ff4500';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.restore();
+    });
 
     // 화염구슬
     flameOrbs.forEach(orb => {
@@ -2010,6 +2295,33 @@
       ctx.lineTo(petX+4, petY-6);
       ctx.fill();
     }
+    
+    // 강아지 펫
+    if(buffs.dogPet){
+      const dogX = player.x - 30;
+      const dogY = player.y - 20;
+      ctx.beginPath();
+      ctx.fillStyle = '#8b5cf6';
+      ctx.arc(dogX, dogY, 6, 0, Math.PI*2);
+      ctx.fill();
+      // 강아지 귀
+      ctx.beginPath();
+      ctx.fillStyle = '#8b5cf6';
+      ctx.moveTo(dogX-4, dogY-6);
+      ctx.lineTo(dogX-2, dogY-10);
+      ctx.lineTo(dogX, dogY-6);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(dogX, dogY-6);
+      ctx.lineTo(dogX+2, dogY-10);
+      ctx.lineTo(dogX+4, dogY-6);
+      ctx.fill();
+      // 강아지 코
+      ctx.beginPath();
+      ctx.fillStyle = '#000';
+      ctx.arc(dogX, dogY+1, 1, 0, Math.PI*2);
+      ctx.fill();
+    }
 
     // 조준선
     ctx.beginPath(); ctx.strokeStyle = 'rgba(230,238,248,.9)'; ctx.lineWidth = 1.2; ctx.arc(mouse.x, mouse.y, 10, 0, Math.PI*2); ctx.stroke();
@@ -2093,6 +2405,14 @@
     if(key === 'q'){ currentWeapon = (currentWeapon - 1 + weapons.length) % weapons.length; updateWeaponStats(); }
     else if(key === 'e'){ currentWeapon = (currentWeapon + 1) % weapons.length; updateWeaponStats(); }
     else if(key === 'x'){ currentWeapon = 2; updateWeaponStats(); }
+    
+    // 발키리의 축복: 강력총 외 다른 무기 사용시 효과 해제
+    if(valkyrieBlessingActive && currentWeapon !== 1){
+      valkyrieBlessingActive = false;
+      powerShotCount = 0;
+      applyWeaponBuffs();
+      updateWeaponStats();
+    }
     else if(key === 'r'){
       const ok = throwGrenade(mouse.x, mouse.y);
       if(ok) maybeQueueExtraGrenade(mouse.x, mouse.y);
