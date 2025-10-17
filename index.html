@@ -2743,6 +2743,13 @@
   startBtn.addEventListener('click', ()=>{ 
     startOverlay.style.display = 'none'; 
     running = true;
+    
+    // 게임 시작시 바로 버프 선택 카드 제공
+    setTimeout(() => {
+      if(running) { // 게임이 여전히 진행 중인지 확인
+        showCardSelection({picks: 1});
+      }
+    }, 100); // 0.1초 후 카드 제공
   });
 
   // 모바일 조이스틱 이벤트
