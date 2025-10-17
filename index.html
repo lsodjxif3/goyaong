@@ -641,21 +641,21 @@
       weapons[2].bulletSpeed += 100;
     }
     
-    // 관통대포 -200 fireRate
+    // 관통대포 발사간격 -200
     if(buffs.pierceFaster200){
       weapons[2].fireRate = Math.max(100, weapons[2].fireRate - 200);
     }
-    // 강력총 -150 fireRate
+    // 강력총 발사간격 -150
     if(buffs.powerFaster150){
       weapons[1].fireRate = Math.max(100, weapons[1].fireRate - 150);
     }
     
-    // 발키리의 축복: 강력총 fireRate -100
+    // 발키리의 축복: 강력총 발사간격 -100
     if(valkyrieBlessingActive && buffs.valkyrieBlessing){
       weapons[1].fireRate = Math.max(100, weapons[1].fireRate - 100);
     }
     
-    // 강력총 연사: fireRate -200
+    // 강력총 연사: 발사간격 -200
     if(buffs.powerRapidFire){
       weapons[1].fireRate = Math.max(100, weapons[1].fireRate - 200);
     }
@@ -2722,7 +2722,8 @@
         }
       }
     }
-    else if(key === 'r'){
+    
+    if(key === 'r'){
       const ok = throwGrenade(mouse.x, mouse.y);
       if(ok) maybeQueueExtraGrenade(mouse.x, mouse.y);
     }
